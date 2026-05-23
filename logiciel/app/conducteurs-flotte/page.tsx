@@ -16,6 +16,7 @@ export default function ConducteursFlottePage() {
   const { profile, loading: authLoading } = useAuth();
   const [view, setView] = useState<ViewState>("list");
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [listKey, setListKey] = useState(0);
   const pathname = usePathname(); // Hook pour gérer les onglets
 
   const userRole = profile?.role || 'membre';
@@ -28,6 +29,7 @@ export default function ConducteursFlottePage() {
   const handleBackToList = () => {
     setSelectedDriver(null);
     setView("list");
+    setListKey((k) => k + 1);
   };
 
   return (
@@ -79,7 +81,7 @@ export default function ConducteursFlottePage() {
         ) : (
           <div className="animate-in fade-in duration-500">
             {view === "list" && (
-              <DriversList onSelectDriver={handleSelectDriver} />
+              <DriversList key={listKey} onSelectDriver={handleSelectDriver} />
             )}
 
             {view === "detail" && selectedDriver && (

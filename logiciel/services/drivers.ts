@@ -9,6 +9,7 @@ import {
   deleteDoc,
   query,
   orderBy,
+  onSnapshot,
 } from "firebase/firestore";
 import { Driver } from "@/types";
 
@@ -85,6 +86,25 @@ function normalizeDriver(data: Record<string, unknown>, id: string): Driver {
       : [],
   };
 }
+
+export const subscribeToDrivers = (
+  onData: (drivers: Driver[]) => void,
+): (() => void) => {
+  const q = query(collection(db, "drivers"), orderBy("lastName", "asc"));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      onData(
+        snapshot.docs.map((docSnap) =>
+          normalizeDriver(docSnap.data() as Record<string, unknown>, docSnap.id),
+        ),
+      );
+    },
+    (error) => {
+      console.error("Error subscribing to drivers:", error);
+    },
+  );
+};
 
 export const getDrivers = async (): Promise<Driver[]> => {
   try {
