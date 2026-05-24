@@ -116,6 +116,8 @@ class RealisticVRPGenerator:
         # Créer nœuds
         nodes = [{
             "id": "DEPOT",
+            "x": locations[0][0],
+            "y": locations[0][1],
             "demand": 0,
             "service_time": 0,
             "time_window": {"start": 0, "end": 86400}
@@ -127,6 +129,8 @@ class RealisticVRPGenerator:
             
             nodes.append({
                 "id": f"CLIENT_{i:03d}",
+                "x": locations[i][0],
+                "y": locations[i][1],
                 "demand": random.randint(1, 5),
                 "service_time": service_time,
                 "time_window": {"start": time_window_start, "end": time_window_end}
