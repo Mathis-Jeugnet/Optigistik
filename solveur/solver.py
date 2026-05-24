@@ -10,13 +10,14 @@ class Route:
     def __init__(self, vehicle, request: OptimizationRequest):
         self.vehicle = vehicle
         self.request = request
-        self.nodes: List[int] = []
+        self.nodes: List[int] = []  # Indices des nœuds visités
         self.is_valid = True
         self.timeline = []
         self.total_distance = 0
         self.total_time = 0
 
     def copy(self) -> 'Route':
+        """Copie rapide de la structure de la route."""
         cloned = Route(self.vehicle, self.request)
         cloned.nodes = list(self.nodes)
         cloned.is_valid = self.is_valid
@@ -26,16 +27,17 @@ class Route:
         return cloned
 
     def clone_and_insert(self, node_index: int, position: int) -> 'Route':
+        """Copie la route et insère un nœud pour simuler sa faisabilité."""
         cloned = Route(self.vehicle, self.request)
         cloned.nodes = list(self.nodes)
         cloned.nodes.insert(position, node_index)
-        cloned.recalculate(generate_timeline=False)
+        cloned.recalculate(generate_timeline=False)  # Simulation rapide
         return cloned
 
     def recalculate(self, generate_timeline: bool = False):
         """
-        SIMULATEUR IMPÉRATIF CRITIQUE
-        Applique strictement : Capacité -> Accès Typologie -> RSE -> Zéro retard horodate
+        VALIDATEUR CHRONOLOGIQUE ET LÉGAL ASYMÉTRIQUE
+        Gère dynamiquement : Départ(Dépôt A) -> Clients -> Arrivée(Dépôt B)
         """
         self.is_valid = True
         self.total_distance = 0
@@ -47,14 +49,15 @@ class Route:
             return
 
         current_time = 0
-        current_node_idx = 0  # Dépôt
+        # Le véhicule commence à son dépôt de départ spécifique
+        current_node_idx = self.vehicle.start_node_idx 
         accumulated_work_before_break = 0
         total_demand = 0
 
         if generate_timeline:
             self.timeline.append({
                 "stop_type": "DEPOT_START",
-                "client_id": self.request.nodes[0].id,
+                "client_id": self.request.nodes[current_node_idx].id,
                 "arrival_time": current_time // 60
             })
 
@@ -66,7 +69,7 @@ class Route:
                 self.is_valid = False
                 return
 
-            # --- FILTRE 2 : Capacité de charge ---
+            # --- FILTRE 2 : Capacité ---
             total_demand += node.demand
             if total_demand > self.vehicle.capacity:
                 self.is_valid = False
@@ -79,7 +82,11 @@ class Route:
             if self.request.enforce_break and (accumulated_work_before_break + transit_time > 16200):
                 current_time += self.request.break_duration_seconds
                 if generate_timeline:
-                    self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                    self.timeline.append({
+                        "stop_type": "BREAK",
+                        "client_id": "PAUSE_RSE",
+                        "arrival_time": current_time // 60
+                    })
                 accumulated_work_before_break = 0
 
             current_time += transit_time
@@ -89,50 +96,67 @@ class Route:
             # --- FILTRE 3 : Fenêtres Horaires STRICTES ---
             if node.time_window:
                 if current_time < node.time_window.start:
-                    # En avance -> Attente
                     wait_time = node.time_window.start - current_time
                     if self.request.enforce_break and wait_time >= self.request.break_duration_seconds:
                         if generate_timeline and (not self.timeline or self.timeline[-1]["stop_type"] != "BREAK"):
-                            self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                            self.timeline.append({
+                                "stop_type": "BREAK",
+                                "client_id": "PAUSE_RSE",
+                                "arrival_time": current_time // 60
+                            })
                         accumulated_work_before_break = 0
                     current_time = node.time_window.start
                 elif current_time > node.time_window.end:
-                    # RETARD INTERDIT : Route immédiatement coupée
                     self.is_valid = False
                     return
 
             if generate_timeline:
-                self.timeline.append({"stop_type": "DELIVERY", "client_id": node.id, "arrival_time": current_time // 60})
+                self.timeline.append({
+                    "stop_type": "DELIVERY",
+                    "client_id": node.id,
+                    "arrival_time": current_time // 60
+                })
 
             if self.request.enforce_break and (accumulated_work_before_break + node.service_time > 16200):
                 current_time += self.request.break_duration_seconds
                 if generate_timeline:
-                    self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                    self.timeline.append({
+                        "stop_type": "BREAK",
+                        "client_id": "PAUSE_RSE",
+                        "arrival_time": current_time // 60
+                    })
                 accumulated_work_before_break = 0
 
             current_time += node.service_time
             accumulated_work_before_break += node.service_time
             current_node_idx = next_node_idx
 
-        # Retour dépôt
-        transit_to_depot = self.request.time_matrix[current_node_idx][0]
+        # --- RETOUR AU DÉPÔT DISSOCIÉ (Fin de tournée) ---
+        end_idx = self.vehicle.end_node_idx
+        transit_to_depot = self.request.time_matrix[current_node_idx][end_idx]
+        
         if self.request.enforce_break and (accumulated_work_before_break + transit_to_depot > 16200):
             current_time += self.request.break_duration_seconds
             if generate_timeline:
-                self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                self.timeline.append({
+                    "stop_type": "BREAK",
+                    "client_id": "PAUSE_RSE",
+                    "arrival_time": current_time // 60
+                })
             accumulated_work_before_break = 0
 
         current_time += transit_to_depot
-        self.total_distance += self.request.distance_matrix[current_node_idx][0]
+        self.total_distance += self.request.distance_matrix[current_node_idx][end_idx]
 
         if generate_timeline:
             self.timeline.append({
                 "stop_type": "DEPOT_END",
-                "client_id": self.request.nodes[0].id,
+                "client_id": self.request.nodes[end_idx].id,
                 "arrival_time": current_time // 60
             })
 
         self.total_time = current_time
+
         if self.total_time > self.vehicle.max_service_time:
             self.is_valid = False
 
@@ -145,15 +169,21 @@ class VRPOptimizer:
 
     def solve(self, initial_routes=None) -> dict:
         start_time = time.time()
-        logger.info(f"🚀 MOTEUR AVANCÉ REGRET-2 & TYPOLOGIES — Clients: {len(self.request.nodes)-1}")
+        logger.info(f"🚀 INITIALISATION MOTEUR SÉQUENTIEL ASYMÉTRIQUE")
 
         # Initialisation de la flotte
         routes = [Route(v, self.request) for v in self.request.vehicles]
         
-        # Liste initiale de tous les clients à planifier
-        all_client_indexes = [i for i in range(1, len(self.request.nodes))]
+        # Identification de tous les index agissant comme dépôts (Départ ou Arrivée)
+        depot_indexes = set()
+        for v in self.request.vehicles:
+            depot_indexes.add(v.start_node_idx)
+            depot_indexes.add(v.end_node_idx)
+            
+        # Extraction exclusive des index clients à livrer
+        all_client_indexes = [i for i in range(len(self.request.nodes)) if i not in depot_indexes]
 
-        # --- PHASE 1 : Construction par Heuristique de Regret-2 ---
+        # --- PHASE 1 : Construction par Regret-2 ---
         routes = self._insert_nodes_regret(routes, all_client_indexes)
 
         # --- PHASE 2 : Recherche Locale Multilatérale (VND) ---
@@ -192,7 +222,7 @@ class VRPOptimizer:
 
         self.unperformed_nodes = best_unperformed
         
-        # Régénération finale complète des parcours graphiques
+        # Génération finale des parcours textuels
         for r in best_routes:
             r.recalculate(generate_timeline=True)
 
@@ -200,11 +230,6 @@ class VRPOptimizer:
         return self._format_solution(best_routes)
 
     def _insert_nodes_regret(self, routes: List[Route], node_indexes: List[int], unperformed_list=None) -> List[Route]:
-        """
-        HEURISTIQUE DE REGRET-2
-        Calcule la différence de coût entre le meilleur choix et le second choix.
-        Insère en priorité le nœud ayant le plus fort regret d'attente.
-        """
         uninserted = list(node_indexes)
         
         while uninserted:
@@ -237,11 +262,9 @@ class VRPOptimizer:
                                 second_best_cost = cost
 
                 if best_cost == float('inf'):
-                    continue  # Impossible à insérer actuellement
+                    continue
 
-                # Calcul du Regret numérique
                 if second_best_cost == float('inf'):
-                    # Si aucune deuxième option n'existe, le nœud est ultra critique
                     regret = 5000000 
                 else:
                     regret = second_best_cost - best_cost
@@ -254,7 +277,6 @@ class VRPOptimizer:
                     saved_best_cloned_route = node_best_cloned_route
 
             if best_node_idx == -1:
-                # Tous les nœuds restants violent une contrainte d'accès ou d'horaire
                 for node_idx in uninserted:
                     node_id = self.request.nodes[node_idx].id
                     if unperformed_list is not None:
@@ -263,7 +285,6 @@ class VRPOptimizer:
                         self.unperformed_nodes.append(node_id)
                 break
 
-            # Affectation définitive
             routes[best_route_idx] = saved_best_cloned_route
             uninserted.remove(best_node_idx)
 
