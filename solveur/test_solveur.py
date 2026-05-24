@@ -37,7 +37,22 @@ def generate_test_data(num_nodes=101):
     vehicles = [
         {"id": "CAMION_01", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
         {"id": "CAMION_02", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
-        {"id": "CAMION_03", "capacity": 50, "max_service_time": 43200, "is_night_shift": False}
+        {"id": "CAMION_03", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_04", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_05", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_06", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_07", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_08", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_09", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_10", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_11", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_12", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_13", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_14", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_15", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_16", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_17", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        
     ]
     
     return {"distance_matrix": dist_matrix, "time_matrix": time_matrix, "nodes": nodes, "vehicles": vehicles}
