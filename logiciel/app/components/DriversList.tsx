@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { Users } from "lucide-react";
 import { Driver } from "@/types";
-import { getDrivers } from "@/services/drivers";
-import DriverEditModal from "./DriverEditModal";
+import { subscribeToDrivers } from "@/services/drivers";
 
 interface DriversListProps {
   onSelectDriver: (driver: Driver) => void;
@@ -21,12 +20,11 @@ export default function DriversList({ onSelectDriver }: DriversListProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchDrivers = async () => {
-      const data = await getDrivers();
-      setDrivers(data || []);
+    const unsubscribe = subscribeToDrivers((data) => {
+      setDrivers(data);
       setLoading(false);
-    };
-    fetchDrivers();
+    });
+    return () => unsubscribe();
   }, []);
 
   const getInitialsColor = (firstName: string) => {
