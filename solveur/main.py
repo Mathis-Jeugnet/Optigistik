@@ -14,36 +14,32 @@ def read_root():
 # MODÈLES DE DONNÉES (Input)
 # ==========================================
 class TimeWindow(BaseModel):
-    start: int # en secondes depuis 00:00
-    end: int   # en secondes depuis 00:00
+    start: int
+    end: int
 
 class Node(BaseModel):
     id: str
-    demand: int # Nombre de palettes (0 pour le dépôt)
-    service_time: int # Durée de déchargement en secondes
+    demand: int
+    service_time: int
     time_window: Optional[TimeWindow] = None
 
 class Vehicle(BaseModel):
     id: str
-    capacity: int # Capacité max en palettes
-    max_service_time: int # Ex: 12h (43200s) ou 10h (36000s) pour la nuit
+    capacity: int
+    max_service_time: int
     is_night_shift: bool
 
 class OptimizationRequest(BaseModel):
-    distance_matrix: List[List[int]] # Matrice de distances (en mètres)
-    time_matrix: List[List[int]]     # Matrice de temps (en secondes)
-    nodes: List[Node]                # Liste des points (Index 0 = Dépôt)
-    vehicles: List[Vehicle]          # Liste des camions disponibles
+    distance_matrix: List[List[int]]
+    time_matrix: List[List[int]]
+    nodes: List[Node]
+    vehicles: List[Vehicle]
 
 # ==========================================
 # LOGIQUE OR-TOOLS
 # ==========================================
 @app.post("/api/optimize")
 def optimize_route(request: OptimizationRequest):
-    # 1. Préparation des données et Multi-trip
-    TRIPS_PER_VEHICLE = 2 
-    num_physical_vehicles = len(request.vehicles)
-    
     data = {
         'distance_matrix': request.distance_matrix,
         'time_matrix': request.time_matrix,
@@ -54,21 +50,13 @@ def optimize_route(request: OptimizationRequest):
             for n in request.nodes
         ],
         'service_times': [node.service_time for node in request.nodes],
-        'num_vehicles': num_physical_vehicles * TRIPS_PER_VEHICLE,
-        'vehicle_capacities': [],
-        'physical_vehicle_ids': []
+        'num_vehicles': len(request.vehicles),
+        'vehicle_capacities': [v.capacity for v in request.vehicles],
     }
 
-    for v in request.vehicles:
-        for _ in range(TRIPS_PER_VEHICLE):
-            data['vehicle_capacities'].append(v.capacity)
-            data['physical_vehicle_ids'].append(v.id)
-
-    # 2. Création des Managers
     manager = pywrapcp.RoutingIndexManager(len(data['time_matrix']), data['num_vehicles'], data['depot'])
     routing = pywrapcp.RoutingModel(manager)
 
-    # 3. Fonction de coût : Distance + Temps
     def distance_callback(from_index, to_index):
         from_node = manager.IndexToNode(from_index)
         to_node = manager.IndexToNode(to_index)
@@ -77,7 +65,6 @@ def optimize_route(request: OptimizationRequest):
     transit_callback_index = routing.RegisterTransitCallback(distance_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
-    # 4. Dimension : Capacité (Palettes)
     def demand_callback(from_index):
         from_node = manager.IndexToNode(from_index)
         return data['demands'][from_node]
@@ -91,7 +78,6 @@ def optimize_route(request: OptimizationRequest):
         'Capacity'
     )
 
-    # 5. Dimension : Temps (Priorité de minimisation)
     def time_callback(from_index, to_index):
         from_node = manager.IndexToNode(from_index)
         to_node = manager.IndexToNode(to_index)
@@ -100,8 +86,8 @@ def optimize_route(request: OptimizationRequest):
     time_callback_index = routing.RegisterTransitCallback(time_callback)
     routing.AddDimension(
         time_callback_index,
-        3600,  # slack max
-        24 * 3600,  # Plafond par trip
+        3600, 
+        24 * 3600,
         False, 
         'Time'
     )
@@ -109,31 +95,42 @@ def optimize_route(request: OptimizationRequest):
     time_dimension = routing.GetDimensionOrDie('Time')
     time_dimension.SetSpanCostCoefficientForAllVehicles(100)
 
-    # Application des fenêtres horaires
     for location_idx, time_window in enumerate(data['time_windows']):
         if location_idx == data['depot']:
             continue
         index = manager.NodeToIndex(location_idx)
         time_dimension.CumulVar(index).SetRange(time_window[0], time_window[1])
 
-    # 6. Contraintes Multi-trip Allégées
+    # 6. Contraintes RSE : La méthode 100% stable
     solver = routing.solver()
-    for v in range(num_physical_vehicles):
-        for t in range(TRIPS_PER_VEHICLE - 1):
-            current_trip = v * TRIPS_PER_VEHICLE + t
-            next_trip = v * TRIPS_PER_VEHICLE + t + 1
-            # Séquençage logique : le trip 2 démarre après le trip 1 (sans imposer un trou de 30min bloquant pour l'instant)
-            solver.Add(
-                time_dimension.CumulVar(routing.Start(next_trip)) >= 
-                time_dimension.CumulVar(routing.End(current_trip))
-            )
+    node_visit_transit = [0] * routing.nodes()
+    for i in range(routing.nodes()):
+        if i != data['depot']:
+            node_visit_transit[i] = data['service_times'][manager.IndexToNode(i)]
 
-    # 7. Nœuds irréalisables (Pénalités)
+    break_intervals_dict = {}
+    for v in range(data['num_vehicles']):
+        # Plafond global RSE du camion (ex: 12h)
+        time_dimension.SetSpanUpperBoundForVehicle(request.vehicles[v].max_service_time, v)
+
+        # Création de la pause de 45 minutes (2700 secondes)
+        # False = OBLIGATOIRE (C'est ce qui empêche le solveur de crasher)
+        break_interval = solver.FixedDurationIntervalVar(0, 24 * 3600, 45 * 60, False, f'Break_{v}')
+        time_dimension.SetBreakIntervalsOfVehicle([break_interval], v, node_visit_transit)
+        break_intervals_dict[v] = break_interval
+
+        start_var = time_dimension.CumulVar(routing.Start(v))
+        
+        # La pause doit commencer entre 2h et 6h après le départ du camion
+        solver.Add(break_interval.StartExpr() >= start_var + 2 * 3600)
+        solver.Add(break_interval.StartExpr() <= start_var + 6 * 3600)
+
+    # 7. Pénalités pour les points impossibles
     penalty = 1000000
     for node in range(1, len(data['time_matrix'])):
         routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
 
-    # 8. Résolution (Stratégie modifiée ici !)
+    # 8. Résolution
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
     search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION
     search_parameters.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
@@ -142,54 +139,46 @@ def optimize_route(request: OptimizationRequest):
     solution = routing.SolveWithParameters(search_parameters)
 
     if not solution:
-        raise HTTPException(status_code=400, detail="Impossible de trouver une solution (Contraintes trop strictes).")
+        raise HTTPException(status_code=400, detail="Impossible de trouver une solution avec ces contraintes.")
 
-    # 9. Formatage JSON strict
+    # 9. Formatage JSON
     def format_time(seconds):
         h = int((seconds % 86400) // 3600)
         m = int((seconds % 3600) // 60)
         return f"{h:02d}:{m:02d}"
 
-    physical_routes_map = {}
+    final_vehicles_list = []
     total_distance_m_global = 0
     total_time_sec_global = 0
 
-    for virt_v in range(data['num_vehicles']):
-        index = routing.Start(virt_v)
+    for v in range(data['num_vehicles']):
+        index = routing.Start(v)
+        
         if routing.IsEnd(solution.Value(routing.NextVar(index))):
             continue
             
-        physical_id = data['physical_vehicle_ids'][virt_v]
-        
-        if physical_id not in physical_routes_map:
-            physical_routes_map[physical_id] = {
-                "vehicle_id": physical_id,
-                "driver_id": f"CHAUFFEUR_{physical_id}",
-                "route": [],
-                "distance_m": 0,
-                "working_duration_s": 0
-            }
-            
-        truck_data = physical_routes_map[physical_id]
+        vehicle_id = request.vehicles[v].id
+        route_steps = []
+        route_distance_m = 0
         
         time_var = time_dimension.CumulVar(index)
         arrival_sec = solution.Min(time_var)
-        departure_sec = arrival_sec + 1800 if len(truck_data["route"]) > 0 else arrival_sec
         
-        truck_data["route"].append({
+        route_steps.append({
             "stop_type": "DEPOT_START",
             "address": request.nodes[0].id,
             "arrival_time": format_time(arrival_sec),
-            "departure_time": format_time(departure_sec),
-            "load_after_stop": 0 
+            "departure_time": format_time(arrival_sec),
+            "_sort_time": arrival_sec - 1
         })
-        
-        trip_load = 0
         
         while not routing.IsEnd(index):
             previous_index = index
             index = solution.Value(routing.NextVar(index))
-            truck_data["distance_m"] += routing.GetArcCostForVehicle(previous_index, index, virt_v)
+            
+            n1 = manager.IndexToNode(previous_index)
+            n2 = manager.IndexToNode(index)
+            route_distance_m += data['distance_matrix'][n1][n2]
             
             if not routing.IsEnd(index):
                 node_index = manager.IndexToNode(index)
@@ -197,47 +186,65 @@ def optimize_route(request: OptimizationRequest):
                 arr_sec = solution.Min(time_var)
                 dep_sec = arr_sec + data['service_times'][node_index]
                 dem = data['demands'][node_index]
-                trip_load += dem
                 
-                truck_data["route"].append({
+                route_steps.append({
                     "stop_type": "DELIVERY",
                     "client_id": request.nodes[node_index].id,
                     "arrival_time": format_time(arr_sec),
                     "departure_time": format_time(dep_sec),
                     "pallets_delivered": dem,
-                    "load_after_stop": 0 
+                    "_sort_time": arr_sec
                 })
 
-        depot_start_step = [s for s in truck_data["route"] if s["stop_type"] == "DEPOT_START"][-1]
-        depot_start_step["load_after_stop"] = trip_load
-        
-        current_decreasing_load = trip_load
-        for step in reversed(truck_data["route"]):
-            if step["stop_type"] == "DELIVERY" and step.get("load_after_stop") == 0:
-                current_decreasing_load -= step["pallets_delivered"]
-                step["load_after_stop"] = current_decreasing_load
+        # Extraction de la pause (qui est maintenant toujours effectuée)
+        brk = break_intervals_dict[v]
+        b_start = solution.StartMin(brk)
+        route_steps.append({
+            "stop_type": "BREAK",
+            "duration_minutes": 45,
+            "arrival_time": format_time(b_start),
+            "departure_time": format_time(b_start + 45 * 60),
+            "_sort_time": b_start
+        })
 
         time_var = time_dimension.CumulVar(index)
         end_sec = solution.Min(time_var)
-        truck_data["working_duration_s"] = end_sec - solution.Min(time_dimension.CumulVar(routing.Start(virt_v - (virt_v % TRIPS_PER_VEHICLE))))
+        working_duration_s = end_sec - solution.Min(time_dimension.CumulVar(routing.Start(v)))
         
-        truck_data["route"].append({
+        route_steps.append({
             "stop_type": "DEPOT_END",
-            "arrival_time": format_time(end_sec)
+            "arrival_time": format_time(end_sec),
+            "_sort_time": end_sec + 1
         })
 
-    final_vehicles_list = []
-    for p_id, t_data in physical_routes_map.items():
-        total_distance_m_global += t_data["distance_m"]
-        total_time_sec_global += t_data["working_duration_s"]
+        route_steps.sort(key=lambda x: x["_sort_time"])
+        
+        total_load = sum(step.get("pallets_delivered", 0) for step in route_steps)
+        current_load = total_load
+        
+        for step in route_steps:
+            if step["stop_type"] == "DEPOT_START":
+                step["load_after_stop"] = total_load
+            elif step["stop_type"] == "DELIVERY":
+                current_load -= step["pallets_delivered"]
+                step["load_after_stop"] = current_load
+            elif step["stop_type"] == "BREAK":
+                step["load_after_stop"] = current_load
+            elif step["stop_type"] == "DEPOT_END":
+                step["load_after_stop"] = 0
+                
+            del step["_sort_time"]
+
+        total_distance_m_global += route_distance_m
+        total_time_sec_global += working_duration_s
         
         final_vehicles_list.append({
-            "vehicle_id": t_data["vehicle_id"],
-            "driver_id": t_data["driver_id"],
-            "route": t_data["route"],
+            "vehicle_id": vehicle_id,
+            "driver_id": f"CHAUFFEUR_{vehicle_id}",
+            "route": route_steps,
             "metrics": {
-                "total_distance_km": round(t_data["distance_m"] / 1000, 2),
-                "working_duration_minutes": t_data["working_duration_s"] // 60
+                "total_distance_km": round(route_distance_m / 1000, 2),
+                "working_duration_minutes": working_duration_s // 60
             }
         })
 

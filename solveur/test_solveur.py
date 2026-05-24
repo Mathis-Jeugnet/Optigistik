@@ -1,80 +1,70 @@
 import requests
 import json
+import random
 
-# L'URL de ton API locale FastAPI
 API_URL = "http://localhost:8000/api/optimize"
 
-# Construction du payload exactement comme ton front-end le ferait
-payload = {
-    "distance_matrix": [
-        [0, 5000, 8000, 12000],   # De: Dépôt (0)
-        [5000, 0, 4000, 15000],   # De: Client 1 (1)
-        [8000, 4000, 0, 9000],    # De: Client 2 (2)
-        [12000, 15000, 9000, 0]   # De: Client 3 (3)
-    ],
-    "time_matrix": [
-        [0, 500, 800, 1200],      # Temps de trajet en secondes
-        [500, 0, 400, 1500],
-        [800, 400, 0, 900],
-        [1200, 1500, 900, 0]
-    ],
-    "nodes": [
-        {
-            "id": "DEPOT",
-            "demand": 0,
-            "service_time": 0,
-            "time_window": {"start": 0, "end": 86400} # Ouvert 24h
-        },
-        {
-            "id": "CLIENT_01",
-            "demand": 5,
-            "service_time": 900,  # 15 minutes de déchargement
-            "time_window": {"start": 28800, "end": 43200} # 08h00 - 12h00
-        },
-        {
-            "id": "CLIENT_02",
-            "demand": 8,
-            "service_time": 1200, # 20 minutes
-            "time_window": {"start": 36000, "end": 54000} # 10h00 - 15h00
-        },
-        {
-            "id": "CLIENT_03",
-            "demand": 10,
-            "service_time": 1800, # 30 minutes
+def generate_test_data(num_nodes=101):
+    # Dépôt à l'index 0
+    nodes = [{
+        "id": "DEPOT",
+        "demand": 0,
+        "service_time": 0,
+        "time_window": {"start": 0, "end": 86400}
+    }]
+    
+    # Génération de 100 clients aléatoires
+    for i in range(1, num_nodes):
+        nodes.append({
+            "id": f"CLIENT_{i:03d}",
+            "demand": random.randint(1, 5),
+            "service_time": random.randint(300, 1200), # 5 à 20 min
             "time_window": {"start": 28800, "end": 61200} # 08h00 - 17h00
-        }
-    ],
-    "vehicles": [
-        {
-            "id": "CAMION_01",
-            "capacity": 20,
-            "max_service_time": 43200, # 12h max
-            "is_night_shift": False
-        },
-        {
-            "id": "CAMION_02",
-            "capacity": 20,
-            "max_service_time": 43200,
-            "is_night_shift": False
-        }
+        })
+
+    # Matrices : 101x101
+    # On crée une matrice cohérente (distance augmentant avec l'index)
+    dist_matrix = [[0] * num_nodes for _ in range(num_nodes)]
+    time_matrix = [[0] * num_nodes for _ in range(num_nodes)]
+    
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+            if i != j:
+                d = random.randint(1000, 50000) # 1km à 50km
+                dist_matrix[i][j] = d
+                time_matrix[i][j] = int(d / 15) # vitesse moyenne
+                
+    vehicles = [
+        {"id": "CAMION_01", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_02", "capacity": 50, "max_service_time": 43200, "is_night_shift": False},
+        {"id": "CAMION_03", "capacity": 50, "max_service_time": 43200, "is_night_shift": False}
     ]
-}
+    
+    return {"distance_matrix": dist_matrix, "time_matrix": time_matrix, "nodes": nodes, "vehicles": vehicles}
 
 def test_api():
-    print("🚀 Envoi de la requête au solveur...")
+    print("🧪 Génération d'une tournée de 100 points...")
+    payload = generate_test_data()
+    
+    print("🚀 Envoi au solveur (ça peut prendre quelques secondes)...")
     try:
-        response = requests.post(API_URL, json=payload)
+        response = requests.post(API_URL, json=payload, timeout=30)
         
-        # On vérifie si la requête a réussi (Statut 200)
         if response.status_code == 200:
-            print("✅ Succès ! Voici la réponse du solveur :\n")
-            print(json.dumps(response.json(), indent=2, ensure_ascii=False))
-        else:
-            print(f"❌ Erreur {response.status_code}:")
-            print(response.text)
+            res = response.json()
+            print("✅ Succès !")
+            print(f"Distance totale: {res['summary']['total_distance_km']} km")
+            print(f"Points non réalisés: {len(res['summary']['unperformed_nodes'])}")
             
-    except requests.exceptions.ConnectionError:
-        print("❌ Impossible de se connecter à l'API. Le conteneur Docker/serveur uvicorn est-il bien lancé sur le port 8000 ?")
+            # Vérifions si des pauses ont été insérées
+            for v in res['vehicles']:
+                breaks = [s for s in v['route'] if s['stop_type'] == 'BREAK']
+                print(f"Camion {v['vehicle_id']} a fait {len(breaks)} pause(s).")
+        else:
+            print(f"❌ Erreur {response.status_code}: {response.text}")
+            
+    except Exception as e:
+        print(f"❌ Erreur lors de la requête : {e}")
 
 if __name__ == "__main__":
     test_api()
