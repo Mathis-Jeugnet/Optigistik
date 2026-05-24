@@ -7,7 +7,7 @@ class TimeWindow(BaseModel):
 
 class Node(BaseModel):
     id: str
-    x: float  # Indispensable pour le clustering géographique
+    x: float
     y: float
     demand: int
     service_time: int
@@ -17,7 +17,7 @@ class Vehicle(BaseModel):
     id: str
     capacity: int
     max_service_time: int
-    is_night_shift: bool
+    is_night_shift: bool = False
 
 class OptimizationRequest(BaseModel):
     distance_matrix: List[List[int]]
@@ -25,8 +25,8 @@ class OptimizationRequest(BaseModel):
     nodes: List[Node]
     vehicles: List[Vehicle]
     
-    # Paramètres de configuration solver
+    # Paramètres par défaut requis par le moteur de contraintes
     enable_soft_time_windows: bool = True
     time_window_penalty: int = 100
     enforce_break: bool = True
-    break_duration_seconds: int = 2700 # 45 min par défaut
+    break_duration_seconds: int = 2700  # 45 minutes
