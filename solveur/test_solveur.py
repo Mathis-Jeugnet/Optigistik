@@ -7,27 +7,19 @@ from typing import Dict, List, Tuple
 API_URL = "http://localhost:8000"
 
 class RealisticVRPGenerator:
-    """
-    Générateur de données VRP réalistes adapté aux contraintes de typologies,
-    de multi-dépôts asymétriques et de rapports d'affrètement.
-    """
-    
     def __init__(self, seed: int = 42):
         random.seed(seed)
         self.seed = seed
     
     def generate_locations(self, num_nodes: int, grid_size: int = 100) -> List[Tuple[float, float]]:
-        locations = [(grid_size / 2, grid_size / 2)]  # Dépôt principal au centre
-        
-        # Ajout de dépôts secondaires fictifs en périphérie de la grille
-        locations.append((10.0, 10.0)) # Dépôt secondaire index 1
-        locations.append((grid_size - 10.0, grid_size - 10.0)) # Dépôt secondaire index 2
+        locations = [(grid_size / 2, grid_size / 2)]
+        locations.append((10.0, 10.0))
+        locations.append((grid_size - 10.0, grid_size - 10.0))
         
         for i in range(3, num_nodes):
             x = random.uniform(0, grid_size)
             y = random.uniform(0, grid_size)
             locations.append((x, y))
-        
         return locations
     
     def euclidean_distance(self, loc1: Tuple[float, float], loc2: Tuple[float, float]) -> int:
@@ -47,9 +39,9 @@ class RealisticVRPGenerator:
         num_vehicles: int = 17,
         grid_size: int = 100,
         enforce_break: bool = True,
-        time_window_start: int = 28800,    # 08h00
-        time_window_end: int = 61200,      # 17h00
-        vehicle_max_time: int = 43200,     # 12h
+        time_window_start: int = 28800,
+        time_window_end: int = 61200,
+        vehicle_max_time: int = 43200,
         force_asymmetric_depots: bool = False,
         force_impossible_constraints: bool = False
     ) -> Dict:
@@ -76,47 +68,39 @@ class RealisticVRPGenerator:
             dist_matrix.append(dist_row)
             time_matrix.append(time_row)
         
-        # Création des nœuds structures
         nodes = []
-        
-        # Les index 0, 1, 2 agissent réglementairement comme des dépôts potentiels
         nodes.append({"id": "ENTREPOT_CENTRAL", "x": locations[0][0], "y": locations[0][1], "demand": 0, "service_time": 0, "time_window": {"start": 0, "end": 86400}})
         nodes.append({"id": "DEPOT_SATELLITE_NORD", "x": locations[1][0], "y": locations[1][1], "demand": 0, "service_time": 0, "time_window": {"start": 0, "end": 86400}})
         nodes.append({"id": "DEPOT_SATELLITE_SUD", "x": locations[2][0], "y": locations[2][1], "demand": 0, "service_time": 0, "time_window": {"start": 0, "end": 86400}})
         
         for i in range(3, num_nodes):
             service_time = random.randint(300, 1200)
-            
-            # Injection aléatoire de restrictions d'accès (typologies de véhicules autorisées)
             allowed = ["POIDS_LOURD", "UTILITAIRE"]
             if i % 5 == 0:
-                allowed = ["UTILITAIRE"]  # 20% des clients interdisent les gros porteurs (ex: centre-ville)
+                allowed = ["UTILITAIRE"]
             elif force_impossible_constraints and i % 3 == 0:
-                allowed = ["HELICOPTERE"] # Génère une impossibilité d'accès stricte pour le test de panne
+                allowed = ["HELICOPTERE"]
                 
             nodes.append({
                 "id": f"CLIENT_{i:03d}",
                 "x": locations[i][0],
                 "y": locations[i][1],
-                "demand": random.randint(1, 5) if not force_impossible_constraints else random.randint(45, 60), # Surcharge volontaire
+                "demand": random.randint(1, 5) if not force_impossible_constraints else random.randint(45, 60),
                 "service_time": service_time,
-                "time_window": {"start": time_window_start, "end": time_window_end} if i % 7 != 0 else {"start": time_window_start, "end": time_window_start + 3600}, # Fenêtres flash serrées
-                "allowed_vehicle_types": allowed
+                "time_window": {"start": time_window_start, "end": time_window_end} if i % 7 != 0 else {"start": time_window_start, "end": time_window_start + 3600},
+                "allowed_vehicle_types": allowed,
+                "locked_vehicle_id": None
             })
         
-        # Génération de la flotte hétérogène de camions
         vehicles = []
         for k in range(1, num_vehicles + 1):
-            # Alternance des types de gabarits dans la flotte
             v_type = "POIDS_LOURD" if k % 2 == 0 else "UTILITAIRE"
             capacity = 100 if v_type == "POIDS_LOURD" else 30
-            
-            # Simulation de départs et retours décalés (Asymétriques)
             start_depot = 0
             end_depot = 0
             if force_asymmetric_depots and k % 3 == 1:
-                start_depot = 1  # Part du Nord
-                end_depot = 2    # Revient au Sud
+                start_depot = 1
+                end_depot = 2
                 
             vehicles.append({
                 "id": f"CAMION_{k:02d}_{v_type}",
@@ -133,13 +117,11 @@ class RealisticVRPGenerator:
             "time_matrix": time_matrix,
             "nodes": nodes,
             "vehicles": vehicles,
-            "enforce_break": enforce_break
+            "enforce_break": enforce_break,
+            "current_time": 0
         }
 
-
 class VRPTester:
-    """Suite de tests unifiée."""
-    
     def __init__(self, api_url: str = API_URL):
         self.api_url = api_url
         self.generator = RealisticVRPGenerator()
@@ -193,14 +175,42 @@ class VRPTester:
 
     def test_failure_diagnostics(self):
         print("\n" + "="*70)
-        print("TEST 7 : RÉSILIENCE - Saturation et rejets provoqués (Rapport attendu)")
+        print("TEST 7 : RÉSILIENCE - Saturation et rejets provoqués")
         print("="*70)
-        # On ne passe que 2 véhicules légers pour livrer des charges monstrueuses, avec des types interdits
         payload = self.generator.generate_test_data(
             num_nodes=25, num_vehicles=2, grid_size=80, enforce_break=True,
             force_impossible_constraints=True
         )
         return self._run_test(payload, "Diagnostic de pannes", expected_partial=True)
+
+    def test_dynamic_routing(self):
+        print("\n" + "="*70)
+        print("TEST 8 : ROUTAGE DYNAMIQUE - Snapshot Instant T & Colis Verrouillés")
+        print("="*70)
+        
+        # On ajuste les horaires pour que les livraisons soient possibles après 10h00
+        payload = self.generator.generate_test_data(
+            num_nodes=35, 
+            num_vehicles=4, 
+            grid_size=60, 
+            enforce_break=True,
+            time_window_start=39600,   # Les créneaux commencent à 11h00
+            time_window_end=64800,     # Les créneaux ferment à 18h00
+            vehicle_max_time=72000     # Fin de service autorisée jusqu'à 20h00
+        )
+        
+        # Le solveur démarre la journée virtuelle à 10h00
+        payload["current_time"] = 36000 
+        
+        # On verrouille 4 colis physiquement dans le camion n°1
+        for i in range(3, 7):
+            payload["nodes"][i]["locked_vehicle_id"] = payload["vehicles"][0]["id"]
+            
+        # On verrouille 3 autres colis physiquement dans le camion n°2
+        for i in range(7, 10):
+            payload["nodes"][i]["locked_vehicle_id"] = payload["vehicles"][1]["id"]
+            
+        return self._run_test(payload, "Routage dynamique (Snapshot T)")
     
     def _run_test(self, payload: Dict, test_name: str, expected_partial: bool = False) -> bool:
         import time
@@ -211,9 +221,12 @@ class VRPTester:
             
             if response.status_code == 200:
                 data = response.json()
-                
                 print(f"   Statut Moteur : {data['status'].upper()}")
-                print(f"   Message : {data.get('message_exploitant', '')}")
+                
+                # Réaffichage du message d'alerte global
+                if data.get("message_exploitant"):
+                    print(f"   Message : {data['message_exploitant']}")
+                    
                 print(f"✅ {test_name} - Exécuté en {elapsed:.2f}s")
                 print(f"   • Distance globale : {data['summary']['total_distance_km']} km")
                 print(f"   • Niveau de service : {data['summary']['service_level_percent']}%")
@@ -261,11 +274,8 @@ class VRPTester:
         total_pass = sum(1 for _, s, _ in self.results if s)
         print(f"\nBilan global : {total_pass}/{len(self.results)} scénarios validés.")
 
-
 if __name__ == "__main__":
     print("\n🚀 CHARGEMENT DE LA NOUVELLE SUITE DE TESTS COMPATIBLE")
-    print("=" * 70)
-    
     tester = VRPTester()
     tester.test_small()
     tester.test_medium()
@@ -273,6 +283,6 @@ if __name__ == "__main__":
     tester.test_large_with_soft_windows()
     tester.test_large_extended_hours()
     tester.test_large_more_vehicles()
-    tester.test_failure_diagnostics() # Nouveau cas de test
-    
+    tester.test_failure_diagnostics()
+    tester.test_dynamic_routing()
     tester.print_summary()

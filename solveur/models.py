@@ -13,6 +13,7 @@ class Node(BaseModel):
     service_time: int
     time_window: Optional[TimeWindow] = None
     allowed_vehicle_types: Optional[List[str]] = None
+    locked_vehicle_id: Optional[str] = None
 
 class Vehicle(BaseModel):
     id: str
@@ -20,7 +21,6 @@ class Vehicle(BaseModel):
     max_service_time: int
     is_night_shift: bool = False
     vehicle_type: str = "STANDARD"
-    # Gestion dissociée des dépôts (0 par défaut pour la rétrocompatibilité)
     start_node_idx: int = 0
     end_node_idx: int = 0
 
@@ -33,3 +33,4 @@ class OptimizationRequest(BaseModel):
     time_window_penalty: int = 0
     enforce_break: bool = True
     break_duration_seconds: int = 2700
+    current_time: int = 0
