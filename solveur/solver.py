@@ -1,6 +1,8 @@
 import logging
 import time
 import random
+import os
+import concurrent.futures
 from typing import List, Dict
 from models import OptimizationRequest
 
@@ -54,8 +56,6 @@ class Route:
                 "arrival_time": current_time // 60
             })
 
-        # Pour l'Approche A, on pré-calcule l'index des nœuds qui vont déclencher un rechargement
-        # afin de pouvoir sommer précisément les temps de service de la sous-tournée suivante.
         nodes_triggering_reload = set()
         temp_demand = 0
         for idx, n_idx in enumerate(self.nodes):
@@ -79,22 +79,18 @@ class Route:
                     self.is_valid = False
                     return {"status": "ERR_COMPETENCE"}
 
-            # --- MISE À JOUR ÉTAPE 3 : Logique Multi-Tours (Approche A) ---
             if idx in nodes_triggering_reload:
                 if self.request.allow_multi_trip:
                     depot_idx = self.vehicle.start_node_idx
                     transit_to_depot = self.request.time_matrix[current_node_idx][depot_idx]
                     dist_to_depot = self.request.distance_matrix[current_node_idx][depot_idx]
                     
-                    # 1. Calcul dynamique du temps de chargement pour la sous-tournée à venir
-                    # On somme les service_time des clients suivants jusqu'au prochain reload (ou la fin)
                     dynamic_reload_time = 0
                     for future_idx in range(idx, len(self.nodes)):
                         if future_idx != idx and future_idx in nodes_triggering_reload:
-                            break # On s'arrête au rechargement d'après
+                            break
                         dynamic_reload_time += self.request.nodes[self.nodes[future_idx]].service_time
                     
-                    # 2. Gestion de la RSE sur le trajet de retour au dépôt
                     if self.request.enforce_break and (accumulated_work_before_break + transit_to_depot > 16200):
                         current_time += self.request.break_duration_seconds
                         if generate_timeline:
@@ -113,7 +109,6 @@ class Route:
                             "loading_duration_min": dynamic_reload_time // 60
                         })
                         
-                    # 3. Gestion de la RSE pendant le temps de chargement dynamique au quai
                     if self.request.enforce_break and (accumulated_work_before_break + dynamic_reload_time > 16200):
                         current_time += self.request.break_duration_seconds
                         if generate_timeline:
@@ -123,7 +118,6 @@ class Route:
                     current_time += dynamic_reload_time
                     accumulated_work_before_break += dynamic_reload_time
                     
-                    # 4. Réinitialisation de la jauge d'emport et de la position géographique
                     total_demand = node.demand
                     current_node_idx = depot_idx
                 else:
@@ -132,7 +126,6 @@ class Route:
             else:
                 total_demand += node.demand
 
-            # Routage standard vers le client
             transit_time = self.request.time_matrix[current_node_idx][next_node_idx]
             transit_dist = self.request.distance_matrix[current_node_idx][next_node_idx]
 
@@ -171,14 +164,17 @@ class Route:
             accumulated_work_before_break += node.service_time
             current_node_idx = next_node_idx
 
-        # Clôture de la tournée : retour au dépôt final
         end_idx = self.vehicle.end_node_idx
         transit_to_depot = self.request.time_matrix[current_node_idx][end_idx]
         
         if self.request.enforce_break and (accumulated_work_before_break + transit_to_depot > 16200):
             current_time += self.request.break_duration_seconds
             if generate_timeline:
-                self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                self.timeline.append({
+                    "stop_type": "BREAK",
+                    "client_id": "PAUSE_RSE",
+                    "arrival_time": current_time // 60
+                })
             accumulated_work_before_break = 0
 
         current_time += transit_to_depot
@@ -273,9 +269,58 @@ class VRPOptimizer:
             v.start_node_idx = old_to_new_mapping[v.start_node_idx]
             v.end_node_idx = old_to_new_mapping[v.end_node_idx]
 
+    def _explore_vns_branch(self, seed_val: int, base_routes: List[Route], base_unperformed_report: List[Dict]) -> tuple:
+        """Méthode de secousse isolée, conçue pour être exécutée sur un cœur CPU dédié."""
+        random.seed(seed_val)
+        
+        # On travaille sur une copie locale isolée pour éviter les conflits entre processus
+        self.unperformed_report = [] 
+        shaken_routes = [r.copy() for r in base_routes]
+        shaken_unperformed_report = list(base_unperformed_report)
+
+        num_to_eject = random.randint(3, 4)
+        all_active_nodes = [node for r in shaken_routes for node in r.nodes if self.request.nodes[node].locked_vehicle_id is None]
+
+        unperformed_priorities = [
+            self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
+            for rep in shaken_unperformed_report if self._id_to_index(rep["client_id"]) != -1
+        ]
+        max_unperformed_priority = max(unperformed_priorities) if unperformed_priorities else 1
+
+        if len(all_active_nodes) >= num_to_eject:
+            if max_unperformed_priority > 1:
+                low_priority_active = [n for n in all_active_nodes if self.request.nodes[n].priority_level < max_unperformed_priority]
+                
+                if len(low_priority_active) >= num_to_eject:
+                    ejected_nodes = random.sample(low_priority_active, num_to_eject)
+                elif low_priority_active:
+                    ejected_nodes = low_priority_active + random.sample([n for n in all_active_nodes if n not in low_priority_active], num_to_eject - len(low_priority_active))
+                else:
+                    ejected_nodes = random.sample(all_active_nodes, num_to_eject)
+            else:
+                ejected_nodes = random.sample(all_active_nodes, num_to_eject)
+                
+            for r in shaken_routes:
+                r.nodes = [n for n in r.nodes if n not in ejected_nodes]
+                r.recalculate(generate_timeline=False)
+
+        excluded_indices = [self._id_to_index(rep["client_id"]) for rep in shaken_unperformed_report]
+        nodes_to_reinsert = ejected_nodes + [idx for idx in excluded_indices if idx != -1 and self.request.nodes[idx].locked_vehicle_id is None]
+
+        shaken_routes = self._insert_nodes_regret(shaken_routes, nodes_to_reinsert, use_priority_multiplier=(max_unperformed_priority > 1))
+        shaken_routes = self._variable_neighborhood_descent(shaken_routes)
+        shaken_distance = sum(r.total_distance for r in shaken_routes if r.nodes)
+
+        new_unperformed_score = sum(
+            self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
+            for rep in self.unperformed_report if self._id_to_index(rep["client_id"]) != -1
+        )
+
+        return shaken_routes, list(self.unperformed_report), shaken_distance, new_unperformed_score
+
     def solve(self, initial_routes=None) -> dict:
         start_time = time.time()
-        logger.info(f"🚀 INITIALISATION MOTEUR DYNAMIQUE (T={self.request.current_time}s)")
+        logger.info(f"🚀 INITIALISATION MOTEUR DYNAMIQUE MULTI-CŒURS (T={self.request.current_time}s)")
 
         routes = [Route(v, self.request) for v in self.request.vehicles]
         
@@ -319,68 +364,49 @@ class VRPOptimizer:
             for rep in self.unperformed_report if self._id_to_index(rep["client_id"]) != -1
         )
 
+        # --- NOUVEAU : Déploiement Multi-Processus (Parallélisation) ---
         max_vns_iterations = 8 
-        for vns_iter in range(1, max_vns_iterations + 1):
-            shaken_routes = [r.copy() for r in best_routes]
-            shaken_unperformed_report = list(self.unperformed_report)
-            self.unperformed_report.clear()
+        generations = 2 # Nombre de cycles complets
+        workers = min(os.cpu_count() or 4, 8) # On utilise jusqu'à 8 cœurs simultanés
 
-            num_to_eject = random.randint(3, 4)
-            all_active_nodes = [node for r in shaken_routes for node in r.nodes if self.request.nodes[node].locked_vehicle_id is None]
+        try:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+                for gen in range(generations):
+                    futures = []
+                    for i in range(max_vns_iterations):
+                        # On génère une graine unique pour que chaque cœur explore un univers différent
+                        seed_val = 42 + gen * max_vns_iterations + i 
+                        futures.append(executor.submit(
+                            self._explore_vns_branch, 
+                            seed_val, 
+                            best_routes, 
+                            self.unperformed_report
+                        ))
 
-            unperformed_priorities = [
-                self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
-                for rep in shaken_unperformed_report if self._id_to_index(rep["client_id"]) != -1
-            ]
-            max_unperformed_priority = max(unperformed_priorities) if unperformed_priorities else 1
+                    for future in concurrent.futures.as_completed(futures):
+                        try:
+                            shaken_routes, shaken_unperformed_report, shaken_distance, new_unperformed_score = future.result()
 
-            if len(all_active_nodes) >= num_to_eject:
-                if max_unperformed_priority > 1:
-                    low_priority_active = [n for n in all_active_nodes if self.request.nodes[n].priority_level < max_unperformed_priority]
-                    
-                    if len(low_priority_active) >= num_to_eject:
-                        ejected_nodes = random.sample(low_priority_active, num_to_eject)
-                    elif low_priority_active:
-                        ejected_nodes = low_priority_active + random.sample([n for n in all_active_nodes if n not in low_priority_active], num_to_eject - len(low_priority_active))
-                    else:
-                        ejected_nodes = random.sample(all_active_nodes, num_to_eject)
-                else:
-                    ejected_nodes = random.sample(all_active_nodes, num_to_eject)
-                    
-                for r in shaken_routes:
-                    r.nodes = [n for n in r.nodes if n not in ejected_nodes]
-                    r.recalculate(generate_timeline=False)
-
-            excluded_indices = [self._id_to_index(rep["client_id"]) for rep in shaken_unperformed_report]
-            nodes_to_reinsert = ejected_nodes + [idx for idx in excluded_indices if idx != -1 and self.request.nodes[idx].locked_vehicle_id is None]
-
-            shaken_routes = self._insert_nodes_regret(shaken_routes, nodes_to_reinsert, use_priority_multiplier=(max_unperformed_priority > 1))
-            shaken_routes = self._variable_neighborhood_descent(shaken_routes)
-            shaken_distance = sum(r.total_distance for r in shaken_routes if r.nodes)
-
-            new_unperformed_score = sum(
-                self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
-                for rep in self.unperformed_report if self._id_to_index(rep["client_id"]) != -1
-            )
-
-            if new_unperformed_score < best_unperformed_score:
-                best_routes = [r.copy() for r in shaken_routes]
-                best_distance = shaken_distance
-                best_unperformed_score = new_unperformed_score
-                continue
-            elif new_unperformed_score == best_unperformed_score:
-                if len(self.unperformed_report) < len(shaken_unperformed_report):
-                    best_routes = [r.copy() for r in shaken_routes]
-                    best_distance = shaken_distance
-                    best_unperformed_score = new_unperformed_score
-                    continue
-                elif len(self.unperformed_report) == len(shaken_unperformed_report) and shaken_distance < best_distance - 10:
-                    best_routes = [r.copy() for r in shaken_routes]
-                    best_distance = shaken_distance
-                    best_unperformed_score = new_unperformed_score
-                    continue
-            
-            self.unperformed_report = list(shaken_unperformed_report)
+                            if new_unperformed_score < best_unperformed_score:
+                                best_routes = [r.copy() for r in shaken_routes]
+                                best_distance = shaken_distance
+                                best_unperformed_score = new_unperformed_score
+                                self.unperformed_report = list(shaken_unperformed_report)
+                            elif new_unperformed_score == best_unperformed_score:
+                                if len(shaken_unperformed_report) < len(self.unperformed_report):
+                                    best_routes = [r.copy() for r in shaken_routes]
+                                    best_distance = shaken_distance
+                                    best_unperformed_score = new_unperformed_score
+                                    self.unperformed_report = list(shaken_unperformed_report)
+                                elif len(shaken_unperformed_report) == len(self.unperformed_report) and shaken_distance < best_distance - 10:
+                                    best_routes = [r.copy() for r in shaken_routes]
+                                    best_distance = shaken_distance
+                                    best_unperformed_score = new_unperformed_score
+                                    self.unperformed_report = list(shaken_unperformed_report)
+                        except Exception as inner_e:
+                            logger.error(f"Erreur dans un processus enfant : {inner_e}")
+        except Exception as e:
+            logger.warning(f"La parallélisation native a échoué ({e}), le solveur va continuer sur la meilleure route trouvée à la phase de construction.")
 
         for r in best_routes:
             r.recalculate(generate_timeline=True)
