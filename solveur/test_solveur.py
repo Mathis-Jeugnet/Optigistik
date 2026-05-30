@@ -81,6 +81,12 @@ class RealisticVRPGenerator:
             elif force_impossible_constraints and i % 3 == 0:
                 allowed = ["HELICOPTERE"]
                 
+            required_skills = []
+            if i % 4 == 0:
+                required_skills.append("HAYON")
+            if force_impossible_constraints and i % 7 == 0:
+                required_skills.append("CERTIFICATION_NUCLEAIRE")
+                
             nodes.append({
                 "id": f"CLIENT_{i:03d}",
                 "x": locations[i][0],
@@ -89,9 +95,11 @@ class RealisticVRPGenerator:
                 "service_time": service_time,
                 "time_window": {"start": time_window_start, "end": time_window_end} if i % 7 != 0 else {"start": time_window_start, "end": time_window_start + 3600},
                 "allowed_vehicle_types": allowed,
-                "locked_vehicle_id": None
+                "locked_vehicle_id": None,
+                "required_skills": required_skills if required_skills else None
             })
         
+        # Génération de la flotte hétérogène de camions
         vehicles = []
         for k in range(1, num_vehicles + 1):
             v_type = "POIDS_LOURD" if k % 2 == 0 else "UTILITAIRE"
@@ -102,6 +110,10 @@ class RealisticVRPGenerator:
                 start_depot = 1
                 end_depot = 2
                 
+            vehicle_skills = ["HAYON"] if k % 2 == 0 else []
+            if k == 1:
+                vehicle_skills.append("HAYON")
+                
             vehicles.append({
                 "id": f"CAMION_{k:02d}_{v_type}",
                 "capacity": capacity,
@@ -109,7 +121,8 @@ class RealisticVRPGenerator:
                 "is_night_shift": False,
                 "vehicle_type": v_type,
                 "start_node_idx": start_depot,
-                "end_node_idx": end_depot
+                "end_node_idx": end_depot,
+                "skills": vehicle_skills if vehicle_skills else None
             })
             
         return {
@@ -187,26 +200,21 @@ class VRPTester:
         print("\n" + "="*70)
         print("TEST 8 : ROUTAGE DYNAMIQUE - Snapshot Instant T & Colis Verrouillés")
         print("="*70)
-        
-        # On ajuste les horaires pour que les livraisons soient possibles après 10h00
         payload = self.generator.generate_test_data(
             num_nodes=35, 
             num_vehicles=4, 
             grid_size=60, 
             enforce_break=True,
-            time_window_start=39600,   # Les créneaux commencent à 11h00
-            time_window_end=64800,     # Les créneaux ferment à 18h00
-            vehicle_max_time=72000     # Fin de service autorisée jusqu'à 20h00
+            time_window_start=39600,
+            time_window_end=64800,
+            vehicle_max_time=72000
         )
         
-        # Le solveur démarre la journée virtuelle à 10h00
         payload["current_time"] = 36000 
         
-        # On verrouille 4 colis physiquement dans le camion n°1
         for i in range(3, 7):
             payload["nodes"][i]["locked_vehicle_id"] = payload["vehicles"][0]["id"]
             
-        # On verrouille 3 autres colis physiquement dans le camion n°2
         for i in range(7, 10):
             payload["nodes"][i]["locked_vehicle_id"] = payload["vehicles"][1]["id"]
             
@@ -223,23 +231,13 @@ class VRPTester:
                 data = response.json()
                 print(f"   Statut Moteur : {data['status'].upper()}")
                 
-                # Réaffichage du message d'alerte global
                 if data.get("message_exploitant"):
                     print(f"   Message : {data['message_exploitant']}")
                     
                 print(f"✅ {test_name} - Exécuté en {elapsed:.2f}s")
                 print(f"   • Distance globale : {data['summary']['total_distance_km']} km")
                 print(f"   • Niveau de service : {data['summary']['service_level_percent']}%")
-                print(f"   • Véhicules mobilisés : {data['summary']['vehicles_used_count']}")
                 
-                # Comptage des arrêts RSE dans la réponse
-                total_breaks = sum(
-                    len([stop for stop in v['route'] if stop['stop_type'] == 'BREAK'])
-                    for v in data['vehicles']
-                )
-                print(f"   • Total des pauses RSE injectées : {total_breaks}")
-                
-                # Traitement du rapport d'affrètement si existant
                 report = data.get("rapport_affretement", [])
                 if report:
                     print(f"   ⚠️  RAPPORT D'AFFRÈTEMENT ({len(report)} rejets détectés) :")

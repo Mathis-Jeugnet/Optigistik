@@ -14,6 +14,7 @@ class Node(BaseModel):
     time_window: Optional[TimeWindow] = None
     allowed_vehicle_types: Optional[List[str]] = None
     locked_vehicle_id: Optional[str] = None
+    required_skills: Optional[List[str]] = None
 
 class Vehicle(BaseModel):
     id: str
@@ -23,6 +24,7 @@ class Vehicle(BaseModel):
     vehicle_type: str = "STANDARD"
     start_node_idx: int = 0
     end_node_idx: int = 0
+    skills: Optional[List[str]] = None
 
 class OptimizationRequest(BaseModel):
     distance_matrix: List[List[int]]

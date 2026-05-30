@@ -42,7 +42,6 @@ class Route:
         if not self.nodes:
             return {"status": "VALID"}
 
-        # --- NOUVEAU : On part de l'instant T ---
         current_time = self.request.current_time
         current_node_idx = self.vehicle.start_node_idx 
         accumulated_work_before_break = 0
@@ -61,6 +60,12 @@ class Route:
             if node.allowed_vehicle_types and self.vehicle.vehicle_type not in node.allowed_vehicle_types:
                 self.is_valid = False
                 return {"status": "ERR_ACCES"}
+
+            if node.required_skills:
+                v_skills = self.vehicle.skills or []
+                if not all(skill in v_skills for skill in node.required_skills):
+                    self.is_valid = False
+                    return {"status": "ERR_COMPETENCE"}
 
             total_demand += node.demand
             if total_demand > self.vehicle.capacity:
@@ -111,7 +116,11 @@ class Route:
         if self.request.enforce_break and (accumulated_work_before_break + transit_to_depot > 16200):
             current_time += self.request.break_duration_seconds
             if generate_timeline:
-                self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                self.timeline.append({
+                    "stop_type": "BREAK",
+                    "client_id": "PAUSE_RSE",
+                    "arrival_time": current_time // 60
+                })
             accumulated_work_before_break = 0
 
         current_time += transit_to_depot
@@ -161,7 +170,8 @@ class VRPOptimizer:
                 
             compatible_capacities = [
                 v.capacity for v in self.request.vehicles 
-                if not node.allowed_vehicle_types or v.vehicle_type in node.allowed_vehicle_types
+                if (not node.allowed_vehicle_types or v.vehicle_type in node.allowed_vehicle_types) and
+                   (not node.required_skills or all(s in (v.skills or []) for s in node.required_skills))
             ]
             
             max_cap = max(compatible_capacities, default=0)
@@ -218,11 +228,9 @@ class VRPOptimizer:
             
         all_client_indexes = [i for i in range(len(self.request.nodes)) if i not in depot_indexes]
 
-        # --- NOUVEAU : Séparation des noeuds verrouillés physiquement et des noeuds libres ---
         locked_indexes = [i for i in all_client_indexes if self.request.nodes[i].locked_vehicle_id is not None]
         free_indexes = [i for i in all_client_indexes if self.request.nodes[i].locked_vehicle_id is None]
 
-        # 1. Insertion forcée des colis déjà chargés dans les camions
         for node_idx in locked_indexes:
             node = self.request.nodes[node_idx]
             target_r_idx = next((i for i, r in enumerate(routes) if r.vehicle.id == node.locked_vehicle_id), -1)
@@ -242,16 +250,12 @@ class VRPOptimizer:
             else:
                 self.unperformed_report.append({"client_id": node.id, "raison_rejet": "ERREUR_VEHICULE_VERROUILLE_INCONNU"})
 
-        # 2. Construction par Regret-2 sur les clients restants (libres)
         routes = self._insert_nodes_regret(routes, free_indexes)
-
-        # 3. Recherche Locale Multilatérale (VND)
         routes = self._variable_neighborhood_descent(routes)
         
         best_routes = [r.copy() for r in routes]
         best_distance = sum(r.total_distance for r in best_routes if r.nodes)
 
-        # 4. META-VNS
         max_vns_iterations = 5
         for vns_iter in range(1, max_vns_iterations + 1):
             shaken_routes = [r.copy() for r in best_routes]
@@ -259,7 +263,6 @@ class VRPOptimizer:
             self.unperformed_report.clear()
 
             num_to_eject = random.randint(3, 4)
-            # Ne secouer/éjecter QUE les clients qui ne sont pas verrouillés physiquement
             all_active_nodes = [node for r in shaken_routes for node in r.nodes if self.request.nodes[node].locked_vehicle_id is None]
             
             if len(all_active_nodes) >= num_to_eject:
@@ -360,6 +363,16 @@ class VRPOptimizer:
         if node.allowed_vehicle_types and not any(vt in node.allowed_vehicle_types for vt in all_vehicle_types):
             return "INCOMPATIBILITE_VEHICULE_FLOTTE"
 
+        if node.required_skills:
+            has_capable_vehicle = False
+            for r in routes:
+                v_skills = r.vehicle.skills or []
+                if all(skill in v_skills for skill in node.required_skills):
+                    has_capable_vehicle = True
+                    break
+            if not has_capable_vehicle:
+                return "INCOMPATIBILITE_COMPETENCES_FLOTTE"
+
         causes = set()
         for route in routes:
             for pos in range(len(route.nodes) + 1):
@@ -382,7 +395,6 @@ class VRPOptimizer:
             loop_guard += 1
             improved = False
 
-            # Voisinage 1 : 2-Opt (Autorisé pour tous)
             for r_idx, route in enumerate(routes):
                 if len(route.nodes) < 3: continue
                 for i in range(len(route.nodes)):
@@ -399,7 +411,6 @@ class VRPOptimizer:
                 if improved: break
             if improved: continue
 
-            # Voisinage 2 : Swap
             for r1_idx, route1 in enumerate(routes):
                 for pos1, node1_idx in enumerate(list(route1.nodes)):
                     for r2_idx, route2 in enumerate(routes):
@@ -416,7 +427,6 @@ class VRPOptimizer:
                                     improved = True
                                     break
                             else:
-                                # --- BLOCAGE DYNAMIQUE : Interdiction d'échanger des colis verrouillés entre 2 camions ---
                                 if self.request.nodes[node1_idx].locked_vehicle_id or self.request.nodes[node2_idx].locked_vehicle_id:
                                     continue
 
@@ -440,7 +450,6 @@ class VRPOptimizer:
                 if improved: break
             if improved: continue
 
-            # Voisinage 3 : Relocate
             for r1_idx, route1 in enumerate(routes):
                 for pos1, node_idx in enumerate(list(route1.nodes)):
                     for r2_idx, route2 in enumerate(routes):
@@ -448,7 +457,6 @@ class VRPOptimizer:
                         for pos2 in range(max_pos2):
                             if r1_idx == r2_idx and (pos2 == pos1 or pos2 == pos1 + 1): continue
                             
-                            # --- BLOCAGE DYNAMIQUE : Interdiction de transférer un colis verrouillé vers un autre camion ---
                             if r1_idx != r2_idx and self.request.nodes[node_idx].locked_vehicle_id:
                                 continue
                             
