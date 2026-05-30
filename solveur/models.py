@@ -26,16 +26,16 @@ class Vehicle(BaseModel):
     start_node_idx: int = 0
     end_node_idx: int = 0
     skills: Optional[List[str]] = None
-    reload_time: int = 2700  # 45 minutes par défaut
 
 class OptimizationRequest(BaseModel):
     distance_matrix: List[List[int]]
     time_matrix: List[List[int]]
     nodes: List[Node]
     vehicles: List[Vehicle]
-    enable_soft_time_windows: bool = False
     time_window_penalty: int = 0
     enforce_break: bool = True
     break_duration_seconds: int = 2700
+    max_continuous_driving_seconds: int = 16200  # 4h30 au volant
+    max_continuous_work_seconds: int = 21600     # 6h00 de travail continu (conduite + manutention)
     current_time: int = 0
     allow_multi_trip: bool = False
