@@ -250,13 +250,20 @@ class VRPOptimizer:
             else:
                 self.unperformed_report.append({"client_id": node.id, "raison_rejet": "ERREUR_VEHICULE_VERROUILLE_INCONNU"})
 
+        # Phase 1 & 2 : Optimisation purement spatiale (Aucune priorité appliquée ici)
         routes = self._insert_nodes_regret(routes, free_indexes)
         routes = self._variable_neighborhood_descent(routes)
         
         best_routes = [r.copy() for r in routes]
         best_distance = sum(r.total_distance for r in best_routes if r.nodes)
 
-        max_vns_iterations = 5
+        # Calcul du "Score de Rejet" initial (Somme des priorités des clients à quai)
+        best_unperformed_score = sum(
+            self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
+            for rep in self.unperformed_report if self._id_to_index(rep["client_id"]) != -1
+        )
+
+        max_vns_iterations = 8 # Légèrement augmenté pour laisser le temps au moteur d'arbitrer les VIP
         for vns_iter in range(1, max_vns_iterations + 1):
             shaken_routes = [r.copy() for r in best_routes]
             shaken_unperformed_report = list(self.unperformed_report)
@@ -264,9 +271,30 @@ class VRPOptimizer:
 
             num_to_eject = random.randint(3, 4)
             all_active_nodes = [node for r in shaken_routes for node in r.nodes if self.request.nodes[node].locked_vehicle_id is None]
-            
+
+            # --- NOUVEAU : Le Mode Panique VIP ---
+            # On vérifie si le rapport d'affrètement actuel contient des clients de haute priorité (SLA)
+            unperformed_priorities = [
+                self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
+                for rep in shaken_unperformed_report if self._id_to_index(rep["client_id"]) != -1
+            ]
+            max_unperformed_priority = max(unperformed_priorities) if unperformed_priorities else 1
+
             if len(all_active_nodes) >= num_to_eject:
-                ejected_nodes = random.sample(all_active_nodes, num_to_eject)
+                if max_unperformed_priority > 1:
+                    # Si un VIP est à quai, le VNS va explicitement cibler et éjecter des clients déjà planifiés 
+                    # mais qui ont une priorité plus faible, pour libérer de la place dans les camions.
+                    low_priority_active = [n for n in all_active_nodes if self.request.nodes[n].priority_level < max_unperformed_priority]
+                    
+                    if len(low_priority_active) >= num_to_eject:
+                        ejected_nodes = random.sample(low_priority_active, num_to_eject)
+                    elif low_priority_active:
+                        ejected_nodes = low_priority_active + random.sample([n for n in all_active_nodes if n not in low_priority_active], num_to_eject - len(low_priority_active))
+                    else:
+                        ejected_nodes = random.sample(all_active_nodes, num_to_eject)
+                else:
+                    ejected_nodes = random.sample(all_active_nodes, num_to_eject)
+                    
                 for r in shaken_routes:
                     r.nodes = [n for n in r.nodes if n not in ejected_nodes]
                     r.recalculate(generate_timeline=False)
@@ -274,14 +302,34 @@ class VRPOptimizer:
             excluded_indices = [self._id_to_index(rep["client_id"]) for rep in shaken_unperformed_report]
             nodes_to_reinsert = ejected_nodes + [idx for idx in excluded_indices if idx != -1 and self.request.nodes[idx].locked_vehicle_id is None]
 
-            shaken_routes = self._insert_nodes_regret(shaken_routes, nodes_to_reinsert)
+            # Lors de la réinsertion en Mode Panique, le VIP bénéficie d'un multiplicateur de Regret pour forcer son insertion
+            shaken_routes = self._insert_nodes_regret(shaken_routes, nodes_to_reinsert, use_priority_multiplier=(max_unperformed_priority > 1))
             shaken_routes = self._variable_neighborhood_descent(shaken_routes)
             shaken_distance = sum(r.total_distance for r in shaken_routes if r.nodes)
 
-            if len(self.unperformed_report) <= len(shaken_unperformed_report):
-                if len(self.unperformed_report) < len(shaken_unperformed_report) or shaken_distance < best_distance - 10:
+            # --- NOUVEAU : L'Arbitrage par le Score de Priorité Globale ---
+            new_unperformed_score = sum(
+                self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
+                for rep in self.unperformed_report if self._id_to_index(rep["client_id"]) != -1
+            )
+
+            # Une secousse est valide si elle diminue la valeur SLA à quai (ex: échanger un VIP contre 2 clients normaux)
+            if new_unperformed_score < best_unperformed_score:
+                best_routes = [r.copy() for r in shaken_routes]
+                best_distance = shaken_distance
+                best_unperformed_score = new_unperformed_score
+                continue
+            elif new_unperformed_score == best_unperformed_score:
+                # À score SLA égal, on regarde la quantité physique de clients, puis la distance spatiale
+                if len(self.unperformed_report) < len(shaken_unperformed_report):
                     best_routes = [r.copy() for r in shaken_routes]
                     best_distance = shaken_distance
+                    best_unperformed_score = new_unperformed_score
+                    continue
+                elif len(self.unperformed_report) == len(shaken_unperformed_report) and shaken_distance < best_distance - 10:
+                    best_routes = [r.copy() for r in shaken_routes]
+                    best_distance = shaken_distance
+                    best_unperformed_score = new_unperformed_score
                     continue
             
             self.unperformed_report = list(shaken_unperformed_report)
@@ -292,7 +340,7 @@ class VRPOptimizer:
         logger.info(f"🏁 Résolution terminée en {round(time.time() - start_time, 3)}s")
         return self._format_solution(best_routes)
 
-    def _insert_nodes_regret(self, routes: List[Route], node_indexes: List[int]) -> List[Route]:
+    def _insert_nodes_regret(self, routes: List[Route], node_indexes: List[int], use_priority_multiplier: bool = False) -> List[Route]:
         uninserted = list(node_indexes)
         
         while uninserted:
@@ -303,6 +351,7 @@ class VRPOptimizer:
             saved_best_cloned_route = None
 
             for node_idx in uninserted:
+                node = self.request.nodes[node_idx]
                 best_cost = float('inf')
                 second_best_cost = float('inf')
                 
@@ -331,6 +380,10 @@ class VRPOptimizer:
                     regret = 5000000 
                 else:
                     regret = second_best_cost - best_cost
+
+                # Application du multiplicateur uniquement pendant le Mode Panique
+                if use_priority_multiplier:
+                    regret = regret * (node.priority_level ** 4)
 
                 if regret > max_regret:
                     max_regret = regret

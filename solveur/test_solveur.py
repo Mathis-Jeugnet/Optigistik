@@ -87,6 +87,13 @@ class RealisticVRPGenerator:
             if force_impossible_constraints and i % 7 == 0:
                 required_skills.append("CERTIFICATION_NUCLEAIRE")
                 
+            # --- Allocation de niveaux de priorité réalistes ---
+            p_level = 1
+            if i % 6 == 0:
+                p_level = 2
+            elif i % 11 == 0:
+                p_level = 3 # Client VIP stratégique
+                
             nodes.append({
                 "id": f"CLIENT_{i:03d}",
                 "x": locations[i][0],
@@ -96,10 +103,10 @@ class RealisticVRPGenerator:
                 "time_window": {"start": time_window_start, "end": time_window_end} if i % 7 != 0 else {"start": time_window_start, "end": time_window_start + 3600},
                 "allowed_vehicle_types": allowed,
                 "locked_vehicle_id": None,
-                "required_skills": required_skills if required_skills else None
+                "required_skills": required_skills if required_skills else None,
+                "priority_level": p_level
             })
         
-        # Génération de la flotte hétérogène de camions
         vehicles = []
         for k in range(1, num_vehicles + 1):
             v_type = "POIDS_LOURD" if k % 2 == 0 else "UTILITAIRE"
@@ -110,8 +117,8 @@ class RealisticVRPGenerator:
                 start_depot = 1
                 end_depot = 2
                 
-            vehicle_skills = ["HAYON"] if k % 2 == 0 else []
-            if k == 1:
+            vehicle_skills = []
+            if k % 2 == 0 or k % 3 == 1:
                 vehicle_skills.append("HAYON")
                 
             vehicles.append({

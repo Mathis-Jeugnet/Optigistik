@@ -15,6 +15,7 @@ class Node(BaseModel):
     allowed_vehicle_types: Optional[List[str]] = None
     locked_vehicle_id: Optional[str] = None
     required_skills: Optional[List[str]] = None
+    priority_level: int = 1
 
 class Vehicle(BaseModel):
     id: str
