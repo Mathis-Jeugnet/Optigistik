@@ -1,7 +1,7 @@
 import logging
 import time
 import random
-from typing import List
+from typing import List, Dict
 from models import OptimizationRequest
 
 logger = logging.getLogger(__name__)
@@ -34,10 +34,11 @@ class Route:
         cloned.recalculate(generate_timeline=False)  # Simulation rapide
         return cloned
 
-    def recalculate(self, generate_timeline: bool = False):
+    def recalculate(self, generate_timeline: bool = False) -> dict:
         """
         VALIDATEUR CHRONOLOGIQUE ET LÉGAL ASYMÉTRIQUE
         Gère dynamiquement : Départ(Dépôt A) -> Clients -> Arrivée(Dépôt B)
+        Retourne un dictionnaire de diagnostic interne permettant d'isoler la cause d'un échec.
         """
         self.is_valid = True
         self.total_distance = 0
@@ -46,10 +47,9 @@ class Route:
             self.timeline = []
 
         if not self.nodes:
-            return
+            return {"status": "VALID"}
 
         current_time = 0
-        # Le véhicule commence à son dépôt de départ spécifique
         current_node_idx = self.vehicle.start_node_idx 
         accumulated_work_before_break = 0
         total_demand = 0
@@ -67,13 +67,13 @@ class Route:
             # --- FILTRE 1 : Contrainte d'accès typologie véhicule ---
             if node.allowed_vehicle_types and self.vehicle.vehicle_type not in node.allowed_vehicle_types:
                 self.is_valid = False
-                return
+                return {"status": "ERR_ACCES"}
 
             # --- FILTRE 2 : Capacité ---
             total_demand += node.demand
             if total_demand > self.vehicle.capacity:
                 self.is_valid = False
-                return
+                return {"status": "ERR_CAPACITE"}
 
             transit_time = self.request.time_matrix[current_node_idx][next_node_idx]
             transit_dist = self.request.distance_matrix[current_node_idx][next_node_idx]
@@ -108,7 +108,7 @@ class Route:
                     current_time = node.time_window.start
                 elif current_time > node.time_window.end:
                     self.is_valid = False
-                    return
+                    return {"status": "ERR_HORAIRE"}
 
             if generate_timeline:
                 self.timeline.append({
@@ -159,13 +159,99 @@ class Route:
 
         if self.total_time > self.vehicle.max_service_time:
             self.is_valid = False
+            return {"status": "ERR_AMPLITUDE"}
+
+        return {"status": "VALID"}
 
 
 class VRPOptimizer:
-    def __init__(self, request: OptimizationRequest):
+    def __init__(self, request: OptimizationRequest, allow_split_deliveries: bool = True):
         self.request = request
-        self.unperformed_nodes: List[str] = []
+        self.allow_split_deliveries = allow_split_deliveries
+        self.unperformed_report: List[Dict] = []
         random.seed(42)
+        
+        # On fractionne les commandes géantes avant même de commencer
+        if self.allow_split_deliveries:
+            self._preprocess_split_deliveries()
+
+    def _preprocess_split_deliveries(self):
+        """
+        Détecte les commandes qui dépassent la capacité maximale des véhicules compatibles.
+        Divise les nœuds ET met à jour les matrices de distances/temps pour éviter les erreurs d'index.
+        """
+        new_nodes = []
+        old_indices = []  # Permettra de reconstruire les matrices
+        old_to_new_mapping = {}  # Pour mettre à jour les index de départ/arrivée des camions
+        
+        current_new_idx = 0
+        
+        for idx, node in enumerate(self.request.nodes):
+            # On mémorise la nouvelle position du nœud (vital pour les dépôts)
+            old_to_new_mapping[idx] = current_new_idx
+            
+            # On ne touche pas aux dépôts (demande = 0)
+            if node.demand == 0:
+                new_nodes.append(node)
+                old_indices.append(idx)
+                current_new_idx += 1
+                continue
+                
+            # Trouver la capacité maximale parmi les véhicules compatibles avec ce client
+            compatible_capacities = [
+                v.capacity for v in self.request.vehicles 
+                if not node.allowed_vehicle_types or v.vehicle_type in node.allowed_vehicle_types
+            ]
+            
+            max_cap = max(compatible_capacities, default=0)
+            
+            # Si le client explose la capacité, on fractionne
+            if max_cap > 0 and node.demand > max_cap:
+                num_full_trucks = node.demand // max_cap
+                remainder = node.demand % max_cap
+                
+                # Création des sous-clients pour les camions pleins
+                for i in range(num_full_trucks):
+                    sub_node = node.model_copy(deep=True)
+                    sub_node.id = f"{node.id}_PART_{i+1}"
+                    sub_node.demand = max_cap
+                    new_nodes.append(sub_node)
+                    old_indices.append(idx) # Pointe vers l'adresse d'origine
+                    current_new_idx += 1
+                    
+                # Création du reliquat
+                if remainder > 0:
+                    sub_node = node.model_copy(deep=True)
+                    sub_node.id = f"{node.id}_PART_FINAL"
+                    sub_node.demand = remainder
+                    new_nodes.append(sub_node)
+                    old_indices.append(idx) # Pointe vers l'adresse d'origine
+                    current_new_idx += 1
+                    
+                logger.info(f"✂️ SDVRP : Commande géante {node.id} ({node.demand} unités) fractionnée en {num_full_trucks + (1 if remainder>0 else 0)} expéditions.")
+            else:
+                # Le client rentre dans un camion normal, on le garde
+                new_nodes.append(node)
+                old_indices.append(idx)
+                current_new_idx += 1
+                
+        # 1. Mise à jour de la liste des nœuds
+        self.request.nodes = new_nodes
+        
+        # 2. Reconstruction dynamique des matrices (clonage automatique des lignes/colonnes)
+        new_distance_matrix = []
+        new_time_matrix = []
+        for i in old_indices:
+            new_distance_matrix.append([self.request.distance_matrix[i][j] for j in old_indices])
+            new_time_matrix.append([self.request.time_matrix[i][j] for j in old_indices])
+            
+        self.request.distance_matrix = new_distance_matrix
+        self.request.time_matrix = new_time_matrix
+        
+        # 3. Réalignement des dépôts des camions (au cas où la liste a grandi avant leur dépôt)
+        for v in self.request.vehicles:
+            v.start_node_idx = old_to_new_mapping[v.start_node_idx]
+            v.end_node_idx = old_to_new_mapping[v.end_node_idx]
 
     def solve(self, initial_routes=None) -> dict:
         start_time = time.time()
@@ -190,14 +276,16 @@ class VRPOptimizer:
         routes = self._variable_neighborhood_descent(routes)
         
         best_routes = [r.copy() for r in routes]
-        best_unperformed = list(self.unperformed_nodes)
         best_distance = sum(r.total_distance for r in best_routes if r.nodes)
 
         # --- PHASE 3 : META-VNS ---
         max_vns_iterations = 5
         for vns_iter in range(1, max_vns_iterations + 1):
             shaken_routes = [r.copy() for r in best_routes]
-            shaken_unperformed = list(best_unperformed)
+            shaken_unperformed_report = list(self.unperformed_report)
+            
+            # On vide temporairement le rapport global pendant la secousse
+            self.unperformed_report.clear()
 
             num_to_eject = random.randint(3, 4)
             all_active_nodes = [node for r in shaken_routes for node in r.nodes]
@@ -208,20 +296,24 @@ class VRPOptimizer:
                     r.nodes = [n for n in r.nodes if n not in ejected_nodes]
                     r.recalculate(generate_timeline=False)
 
-            nodes_to_reinsert = ejected_nodes + [self._id_to_index(nid) for nid in shaken_unperformed]
-            shaken_unperformed.clear()
+            # Re-calcul des index pour réinsertion
+            excluded_indices = [self._id_to_index(rep["client_id"]) for rep in shaken_unperformed_report]
+            nodes_to_reinsert = ejected_nodes + [idx for idx in excluded_indices if idx != -1]
 
-            shaken_routes = self._insert_nodes_regret(shaken_routes, nodes_to_reinsert, shaken_unperformed)
+            shaken_routes = self._insert_nodes_regret(shaken_routes, nodes_to_reinsert)
             shaken_routes = self._variable_neighborhood_descent(shaken_routes)
             shaken_distance = sum(r.total_distance for r in shaken_routes if r.nodes)
 
-            if len(shaken_unperformed) <= len(best_unperformed) and shaken_distance < best_distance - 10:
-                best_routes = [r.copy() for r in shaken_routes]
-                best_unperformed = list(shaken_unperformed)
-                best_distance = shaken_distance
+            # Une secousse est valide si elle réduit le nombre d'exclus, ou réduit la distance à nombre d'exclus égal
+            if len(self.unperformed_report) <= len(shaken_unperformed_report):
+                if len(self.unperformed_report) < len(shaken_unperformed_report) or shaken_distance < best_distance - 10:
+                    best_routes = [r.copy() for r in shaken_routes]
+                    best_distance = shaken_distance
+                    continue
+            
+            # Annulation de la secousse : on restaure l'état précédent
+            self.unperformed_report = list(shaken_unperformed_report)
 
-        self.unperformed_nodes = best_unperformed
-        
         # Génération finale des parcours textuels
         for r in best_routes:
             r.recalculate(generate_timeline=True)
@@ -229,7 +321,7 @@ class VRPOptimizer:
         logger.info(f"🏁 Résolution terminée en {round(time.time() - start_time, 3)}s")
         return self._format_solution(best_routes)
 
-    def _insert_nodes_regret(self, routes: List[Route], node_indexes: List[int], unperformed_list=None) -> List[Route]:
+    def _insert_nodes_regret(self, routes: List[Route], node_indexes: List[int]) -> List[Route]:
         uninserted = list(node_indexes)
         
         while uninserted:
@@ -277,18 +369,46 @@ class VRPOptimizer:
                     saved_best_cloned_route = node_best_cloned_route
 
             if best_node_idx == -1:
-                for node_idx in uninserted:
+                # --- LE MOTEUR DE DIAGNOSTIC S'ACTIVE POUR LES ARRÊTS ÉCARTÉS ---
+                for node_idx in list(uninserted):
                     node_id = self.request.nodes[node_idx].id
-                    if unperformed_list is not None:
-                        unperformed_list.append(node_id)
-                    else:
-                        self.unperformed_nodes.append(node_id)
+                    reason = self._diagnose_rejection_cause(routes, node_idx)
+                    
+                    self.unperformed_report.append({
+                        "client_id": node_id,
+                        "raison_rejet": reason
+                    })
+                    uninserted.remove(node_idx)
                 break
 
             routes[best_route_idx] = saved_best_cloned_route
             uninserted.remove(best_node_idx)
 
         return routes
+
+    def _diagnose_rejection_cause(self, routes: List[Route], node_idx: int) -> str:
+        """Analyse pas à pas pourquoi le nœud a été rejeté par l'intégralité de la flotte."""
+        node = self.request.nodes[node_idx]
+        
+        # Cause 1 : Problème d'accès physique (gabarit/typologie) sur l'ensemble du parc fourni
+        all_vehicle_types = set(r.vehicle.vehicle_type for r in routes)
+        if node.allowed_vehicle_types and not any(vt in node.allowed_vehicle_types for vt in all_vehicle_types):
+            return "INCOMPATIBILITE_VEHICULE_FLOTTE"
+
+        # Cause 2 : Analyse fine des dysfonctionnements sur les camions compatibles
+        causes = set()
+        for route in routes:
+            for pos in range(len(route.nodes) + 1):
+                diag = route.clone_and_insert(node_idx, pos).recalculate(generate_timeline=False)
+                if diag["status"] != "VALID":
+                    causes.add(diag["status"])
+
+        if "ERR_CAPACITE" in causes and len(causes) == 1:
+            return "SATURE_CAPACITE_POIDS_VOLUME"
+        if "ERR_HORAIRE" in causes or "ERR_AMPLITUDE" in causes:
+            return "SATURE_AMPLITUDE_TEMPS_OU_FENETRES_HORAIRES"
+            
+        return "SATURE_FLOTTE_GENERALE"
 
     def _variable_neighborhood_descent(self, routes: List[Route]) -> List[Route]:
         improved = True
@@ -391,15 +511,23 @@ class VRPOptimizer:
             used_vehicles += 1
             total_dist += r.total_distance
             vehicles_json.append({"vehicle_id": r.vehicle.id, "route": r.timeline})
+            
         total_nodes = len(self.request.nodes) - 1
-        service_level = round(100 * (1 - len(self.unperformed_nodes) / total_nodes), 1) if total_nodes > 0 else 100
+        service_level = round(100 * (1 - len(self.unperformed_report) / total_nodes), 1) if total_nodes > 0 else 100
+
+        # Construction du message d'aide à la décision personnalisé destiné à la webapp
+        statut_message = "Tournées 100% validées."
+        if self.unperformed_report:
+            statut_message = f"Attention, {len(self.unperformed_report)} point(s) n'ont pas pu être planifiés en raison de contraintes physiques ou légales strictes. Veuillez faire appel à un affréteur pour les points listés ci-dessous."
+
         return {
-            "status": "success",
+            "status": "success" if not self.unperformed_report else "partial_success",
+            "message_exploitant": statut_message,
             "summary": {
                 "total_distance_km": round(total_dist / 1000, 2),
-                "unperformed_nodes": self.unperformed_nodes,
-                "service_level": service_level,
-                "vehicles_used": used_vehicles
+                "service_level_percent": service_level,
+                "vehicles_used_count": used_vehicles
             },
+            "rapport_affretement": self.unperformed_report,  # Liste des points non livrés + cause exacte
             "vehicles": vehicles_json
         }
