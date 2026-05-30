@@ -54,7 +54,19 @@ class Route:
                 "arrival_time": current_time // 60
             })
 
-        for next_node_idx in self.nodes:
+        # Pour l'Approche A, on pré-calcule l'index des nœuds qui vont déclencher un rechargement
+        # afin de pouvoir sommer précisément les temps de service de la sous-tournée suivante.
+        nodes_triggering_reload = set()
+        temp_demand = 0
+        for idx, n_idx in enumerate(self.nodes):
+            node_demand = self.request.nodes[n_idx].demand
+            if temp_demand + node_demand > self.vehicle.capacity:
+                nodes_triggering_reload.add(idx)
+                temp_demand = node_demand
+            else:
+                temp_demand += node_demand
+
+        for idx, next_node_idx in enumerate(self.nodes):
             node = self.request.nodes[next_node_idx]
             
             if node.allowed_vehicle_types and self.vehicle.vehicle_type not in node.allowed_vehicle_types:
@@ -67,11 +79,60 @@ class Route:
                     self.is_valid = False
                     return {"status": "ERR_COMPETENCE"}
 
-            total_demand += node.demand
-            if total_demand > self.vehicle.capacity:
-                self.is_valid = False
-                return {"status": "ERR_CAPACITE"}
+            # --- MISE À JOUR ÉTAPE 3 : Logique Multi-Tours (Approche A) ---
+            if idx in nodes_triggering_reload:
+                if self.request.allow_multi_trip:
+                    depot_idx = self.vehicle.start_node_idx
+                    transit_to_depot = self.request.time_matrix[current_node_idx][depot_idx]
+                    dist_to_depot = self.request.distance_matrix[current_node_idx][depot_idx]
+                    
+                    # 1. Calcul dynamique du temps de chargement pour la sous-tournée à venir
+                    # On somme les service_time des clients suivants jusqu'au prochain reload (ou la fin)
+                    dynamic_reload_time = 0
+                    for future_idx in range(idx, len(self.nodes)):
+                        if future_idx != idx and future_idx in nodes_triggering_reload:
+                            break # On s'arrête au rechargement d'après
+                        dynamic_reload_time += self.request.nodes[self.nodes[future_idx]].service_time
+                    
+                    # 2. Gestion de la RSE sur le trajet de retour au dépôt
+                    if self.request.enforce_break and (accumulated_work_before_break + transit_to_depot > 16200):
+                        current_time += self.request.break_duration_seconds
+                        if generate_timeline:
+                            self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                        accumulated_work_before_break = 0
+                        
+                    current_time += transit_to_depot
+                    accumulated_work_before_break += transit_to_depot
+                    self.total_distance += dist_to_depot
+                    
+                    if generate_timeline:
+                        self.timeline.append({
+                            "stop_type": "RELOAD", 
+                            "client_id": self.request.nodes[depot_idx].id, 
+                            "arrival_time": current_time // 60,
+                            "loading_duration_min": dynamic_reload_time // 60
+                        })
+                        
+                    # 3. Gestion de la RSE pendant le temps de chargement dynamique au quai
+                    if self.request.enforce_break and (accumulated_work_before_break + dynamic_reload_time > 16200):
+                        current_time += self.request.break_duration_seconds
+                        if generate_timeline:
+                            self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                        accumulated_work_before_break = 0
+                        
+                    current_time += dynamic_reload_time
+                    accumulated_work_before_break += dynamic_reload_time
+                    
+                    # 4. Réinitialisation de la jauge d'emport et de la position géographique
+                    total_demand = node.demand
+                    current_node_idx = depot_idx
+                else:
+                    self.is_valid = False
+                    return {"status": "ERR_CAPACITE"}
+            else:
+                total_demand += node.demand
 
+            # Routage standard vers le client
             transit_time = self.request.time_matrix[current_node_idx][next_node_idx]
             transit_dist = self.request.distance_matrix[current_node_idx][next_node_idx]
 
@@ -110,17 +171,14 @@ class Route:
             accumulated_work_before_break += node.service_time
             current_node_idx = next_node_idx
 
+        # Clôture de la tournée : retour au dépôt final
         end_idx = self.vehicle.end_node_idx
         transit_to_depot = self.request.time_matrix[current_node_idx][end_idx]
         
         if self.request.enforce_break and (accumulated_work_before_break + transit_to_depot > 16200):
             current_time += self.request.break_duration_seconds
             if generate_timeline:
-                self.timeline.append({
-                    "stop_type": "BREAK",
-                    "client_id": "PAUSE_RSE",
-                    "arrival_time": current_time // 60
-                })
+                self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
             accumulated_work_before_break = 0
 
         current_time += transit_to_depot
@@ -250,20 +308,18 @@ class VRPOptimizer:
             else:
                 self.unperformed_report.append({"client_id": node.id, "raison_rejet": "ERREUR_VEHICULE_VERROUILLE_INCONNU"})
 
-        # Phase 1 & 2 : Optimisation purement spatiale (Aucune priorité appliquée ici)
         routes = self._insert_nodes_regret(routes, free_indexes)
         routes = self._variable_neighborhood_descent(routes)
         
         best_routes = [r.copy() for r in routes]
         best_distance = sum(r.total_distance for r in best_routes if r.nodes)
 
-        # Calcul du "Score de Rejet" initial (Somme des priorités des clients à quai)
         best_unperformed_score = sum(
             self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
             for rep in self.unperformed_report if self._id_to_index(rep["client_id"]) != -1
         )
 
-        max_vns_iterations = 8 # Légèrement augmenté pour laisser le temps au moteur d'arbitrer les VIP
+        max_vns_iterations = 8 
         for vns_iter in range(1, max_vns_iterations + 1):
             shaken_routes = [r.copy() for r in best_routes]
             shaken_unperformed_report = list(self.unperformed_report)
@@ -272,8 +328,6 @@ class VRPOptimizer:
             num_to_eject = random.randint(3, 4)
             all_active_nodes = [node for r in shaken_routes for node in r.nodes if self.request.nodes[node].locked_vehicle_id is None]
 
-            # --- NOUVEAU : Le Mode Panique VIP ---
-            # On vérifie si le rapport d'affrètement actuel contient des clients de haute priorité (SLA)
             unperformed_priorities = [
                 self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
                 for rep in shaken_unperformed_report if self._id_to_index(rep["client_id"]) != -1
@@ -282,8 +336,6 @@ class VRPOptimizer:
 
             if len(all_active_nodes) >= num_to_eject:
                 if max_unperformed_priority > 1:
-                    # Si un VIP est à quai, le VNS va explicitement cibler et éjecter des clients déjà planifiés 
-                    # mais qui ont une priorité plus faible, pour libérer de la place dans les camions.
                     low_priority_active = [n for n in all_active_nodes if self.request.nodes[n].priority_level < max_unperformed_priority]
                     
                     if len(low_priority_active) >= num_to_eject:
@@ -302,25 +354,21 @@ class VRPOptimizer:
             excluded_indices = [self._id_to_index(rep["client_id"]) for rep in shaken_unperformed_report]
             nodes_to_reinsert = ejected_nodes + [idx for idx in excluded_indices if idx != -1 and self.request.nodes[idx].locked_vehicle_id is None]
 
-            # Lors de la réinsertion en Mode Panique, le VIP bénéficie d'un multiplicateur de Regret pour forcer son insertion
             shaken_routes = self._insert_nodes_regret(shaken_routes, nodes_to_reinsert, use_priority_multiplier=(max_unperformed_priority > 1))
             shaken_routes = self._variable_neighborhood_descent(shaken_routes)
             shaken_distance = sum(r.total_distance for r in shaken_routes if r.nodes)
 
-            # --- NOUVEAU : L'Arbitrage par le Score de Priorité Globale ---
             new_unperformed_score = sum(
                 self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
                 for rep in self.unperformed_report if self._id_to_index(rep["client_id"]) != -1
             )
 
-            # Une secousse est valide si elle diminue la valeur SLA à quai (ex: échanger un VIP contre 2 clients normaux)
             if new_unperformed_score < best_unperformed_score:
                 best_routes = [r.copy() for r in shaken_routes]
                 best_distance = shaken_distance
                 best_unperformed_score = new_unperformed_score
                 continue
             elif new_unperformed_score == best_unperformed_score:
-                # À score SLA égal, on regarde la quantité physique de clients, puis la distance spatiale
                 if len(self.unperformed_report) < len(shaken_unperformed_report):
                     best_routes = [r.copy() for r in shaken_routes]
                     best_distance = shaken_distance
@@ -381,7 +429,6 @@ class VRPOptimizer:
                 else:
                     regret = second_best_cost - best_cost
 
-                # Application du multiplicateur uniquement pendant le Mode Panique
                 if use_priority_multiplier:
                     regret = regret * (node.priority_level ** 4)
 

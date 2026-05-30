@@ -87,12 +87,11 @@ class RealisticVRPGenerator:
             if force_impossible_constraints and i % 7 == 0:
                 required_skills.append("CERTIFICATION_NUCLEAIRE")
                 
-            # --- Allocation de niveaux de priorité réalistes ---
             p_level = 1
             if i % 6 == 0:
                 p_level = 2
             elif i % 11 == 0:
-                p_level = 3 # Client VIP stratégique
+                p_level = 3
                 
             nodes.append({
                 "id": f"CLIENT_{i:03d}",
@@ -226,6 +225,20 @@ class VRPTester:
             payload["nodes"][i]["locked_vehicle_id"] = payload["vehicles"][1]["id"]
             
         return self._run_test(payload, "Routage dynamique (Snapshot T)")
+
+    def test_multi_trip(self):
+        print("\n" + "="*70)
+        print("TEST 9 : MULTI-TOURS - Réapprovisionnement dynamique (Multi-Trip)")
+        print("="*70)
+        payload = self.generator.generate_test_data(
+            num_nodes=15, 
+            num_vehicles=1, 
+            grid_size=30, 
+            enforce_break=True
+        )
+        # Activation explicite du Multi-Tours pour ce scénario contraint
+        payload["allow_multi_trip"] = True
+        return self._run_test(payload, "Multi-tours (1 camion / Multi-trips)")
     
     def _run_test(self, payload: Dict, test_name: str, expected_partial: bool = False) -> bool:
         import time
@@ -290,4 +303,5 @@ if __name__ == "__main__":
     tester.test_large_more_vehicles()
     tester.test_failure_diagnostics()
     tester.test_dynamic_routing()
+    tester.test_multi_trip()
     tester.print_summary()

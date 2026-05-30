@@ -26,6 +26,7 @@ class Vehicle(BaseModel):
     start_node_idx: int = 0
     end_node_idx: int = 0
     skills: Optional[List[str]] = None
+    reload_time: int = 2700  # 45 minutes par défaut
 
 class OptimizationRequest(BaseModel):
     distance_matrix: List[List[int]]
@@ -37,3 +38,4 @@ class OptimizationRequest(BaseModel):
     enforce_break: bool = True
     break_duration_seconds: int = 2700
     current_time: int = 0
+    allow_multi_trip: bool = False
