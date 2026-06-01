@@ -142,7 +142,7 @@ export default function GenerateTourneeButton() {
             <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
               <div>
                 <h3 className="text-2xl font-bold text-opti-blue font-display">Optimisation de la tournée</h3>
-                <p className="text-slate-500 text-sm mt-1">Groupement intelligent & stockage Firebase synchronisé</p>
+                <p className="text-slate-500 text-sm mt-1">Groupement intelligent de vos points de livraison</p>
               </div>
               <div className="flex items-center gap-2">
                 {result && (
@@ -310,10 +310,6 @@ export default function GenerateTourneeButton() {
               </button>
               
               <div className="flex gap-3">
-                <div className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-green-600 bg-green-50 rounded-xl mr-2">
-                  <Check className="w-3 h-3" />
-                  Firebase Synchronisé
-                </div>
                 {matrixStatus === 'computing' && (
                   <div className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-600 bg-blue-50 rounded-xl mr-2">
                     <Loader2 className="w-3 h-3 animate-spin" />
