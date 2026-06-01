@@ -8,7 +8,7 @@ import DashboardLayout from "@/app/components/DashboardLayout";
 import Link from "next/link";
 import { 
   ArrowLeft, Plus, X, UserPlus, ShieldCheck, 
-  Users, Truck, Trash2, Pencil 
+  Users, Truck, Trash2, Pencil, ShieldAlert, CheckCircle, Info 
 } from "lucide-react";
 
 type UserData = {
@@ -60,6 +60,17 @@ export default function RolesAdminPage() {
   const [editRole, setEditRole] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  // États pour le système de notifications Toast (Pop-up moderne)
+  const [notifications, setNotifications] = useState<{ id: string; type: 'success' | 'error' | 'info'; message: string }[]>([]);
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setNotifications(prev => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 4500);
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -131,7 +142,7 @@ export default function RolesAdminPage() {
       setDriverPhone("");
       setDriverRole("");
       await fetchUsers();
-      alert("Utilisateur créé avec succès !");
+      showNotification("Utilisateur créé avec succès !", "success");
     } catch (error: any) {
       setCreateError(error.message);
     } finally {
@@ -155,14 +166,17 @@ export default function RolesAdminPage() {
         body: JSON.stringify({ targetUid: userToDelete.uid }),
       });
 
-      if (!response.ok) throw new Error("Erreur lors de la suppression");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Erreur lors de la suppression");
+      }
 
       setShowDeleteModal(false);
       setUserToDelete(null);
       await fetchUsers();
-      alert("Utilisateur supprimé avec succès !");
+      showNotification("Utilisateur supprimé avec succès !", "success");
     } catch (error: any) {
-      alert(error.message);
+      showNotification(error.message, "error");
     } finally {
       setIsDeleting(false);
     }
@@ -237,13 +251,17 @@ export default function RolesAdminPage() {
         }),
       });
 
-      if (!response.ok) throw new Error("Erreur lors de la mise à jour");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Erreur lors de la mise à jour");
+      }
 
       setShowEditModal(false);
       await fetchUsers();
-      alert("Utilisateur mis à jour avec succès !");
+      showNotification("Utilisateur mis à jour avec succès !", "success");
     } catch (error: any) {
       setEditError(error.message);
+      showNotification(error.message, "error");
     } finally {
       setIsUpdating(false);
     }
@@ -657,6 +675,50 @@ export default function RolesAdminPage() {
           </div>
         </div>
       )}
+
+      {/* Toast Notifications Overlay (Premium Pop-ups) */}
+      <div className="fixed bottom-6 right-6 z-[99999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+        {notifications.map((notif) => (
+          <div 
+            key={notif.id}
+            className={`pointer-events-auto p-4 rounded-2xl shadow-2xl border backdrop-blur-md flex items-start gap-3 animate-in slide-in-from-bottom-10 duration-300 w-full ${
+              notif.type === 'success' 
+                ? 'bg-white/95 border-green-100 text-slate-800' 
+                : notif.type === 'error'
+                ? 'bg-white/95 border-red-100 text-slate-800'
+                : 'bg-white/95 border-blue-100 text-slate-800'
+            }`}
+          >
+            <div className={`p-2 rounded-xl shrink-0 ${
+              notif.type === 'success' 
+                ? 'bg-green-50 text-green-500' 
+                : notif.type === 'error'
+                ? 'bg-red-50 text-opti-red'
+                : 'bg-blue-50 text-blue-500'
+            }`}>
+              {notif.type === 'success' && <CheckCircle className="w-5 h-5" />}
+              {notif.type === 'error' && <ShieldAlert className="w-5 h-5" />}
+              {notif.type === 'info' && <Info className="w-5 h-5" />}
+            </div>
+            
+            <div className="flex-1 pt-0.5">
+              <p className="text-sm font-bold text-slate-900 mb-0.5">
+                {notif.type === 'success' ? 'Succès' : notif.type === 'error' ? 'Erreur' : 'Information'}
+              </p>
+              <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+                {notif.message}
+              </p>
+            </div>
+
+            <button 
+              onClick={() => setNotifications(prev => prev.filter(n => n.id !== notif.id))}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors shrink-0 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
     </RoleGuard>
   );
 }
