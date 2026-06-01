@@ -128,7 +128,7 @@ export default function ImportPanel() {
       const autoMapping = autoDetectMapping(columns)
       if (autoMapping) processRows(rows, autoMapping)
       else { setPendingRows(rows); setPendingColumns(columns) }
-    } catch { setImportError('Erreur lors de la lecture du fichier.') }
+    } catch (e) { setImportError('Erreur : ' + (e instanceof Error ? e.message : 'format non supporté')) }
   }, [processRows])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
