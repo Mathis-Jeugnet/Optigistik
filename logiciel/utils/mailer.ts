@@ -139,59 +139,35 @@ export async function sendTempPasswordEmail(email: string, name: string, tempPas
     </html>
   `;
 
-  // 1. Si SMTP configuré, on envoie le vrai e-mail
-  if (smtpHost && smtpUser && smtpPass) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
-
-      await transporter.sendMail({
-        from: `Optigistik <${fromEmail}>`,
-        to: email,
-        subject,
-        html: htmlContent,
-      });
-
-      console.log(`[MAILER] E-mail envoyé avec succès à ${email}`);
-      return { success: true };
-    } catch (error) {
-      console.error('[MAILER] Échec de l\'envoi de l\'e-mail par SMTP:', error);
-      // On continue vers le fallback local pour ne pas bloquer le développement
-    }
+  // 1. Validation de la configuration SMTP
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    console.error('[MAILER ERROR] SMTP n\'est pas configuré dans les variables d\'environnement.');
+    throw new Error('Le serveur de messagerie SMTP n\'est pas configuré. Veuillez définir SMTP_HOST, SMTP_USER, et SMTP_PASS dans votre fichier .env.local.');
   }
 
-  // 2. Fallback Développement : Enregistrement de l'e-mail dans le dossier public/emails
+  // 2. Envoi par SMTP
   try {
-    const publicEmailsDir = path.join(process.cwd(), 'public', 'emails');
-    if (!fs.existsSync(publicEmailsDir)) {
-      fs.mkdirSync(publicEmailsDir, { recursive: true });
-    }
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
 
-    const sanitizedEmail = email.replace(/[^a-zA-Z0-9]/g, '_');
-    const filename = `temp-pass-${sanitizedEmail}-${Date.now()}.html`;
-    const filepath = path.join(publicEmailsDir, filename);
+    await transporter.sendMail({
+      from: `Optigistik <${fromEmail}>`,
+      to: email,
+      subject,
+      html: htmlContent,
+    });
 
-    fs.writeFileSync(filepath, htmlContent, 'utf-8');
-
-    const localUrl = `/emails/${filename}`;
-    console.log('\n======================================================');
-    console.log(`[DEVELOPPEMENT - MAILER FALLBACK]`);
-    console.log(`E-mail généré pour : ${name} (${email})`);
-    console.log(`Mot de passe temporaire : ${tempPassword}`);
-    console.log(`Fichier e-mail écrit : ${filepath}`);
-    console.log(`URL locale pour visualiser l'e-mail : http://localhost:3000${localUrl}`);
-    console.log('======================================================\n');
-
-    return { success: true, path: localUrl };
-  } catch (err) {
-    console.error('[MAILER] Impossible d\'écrire l\'e-mail local de fallback:', err);
-    return { success: false };
+    console.log(`[MAILER] E-mail envoyé avec succès à ${email}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[MAILER] Échec de l\'envoi de l\'e-mail par SMTP:', error);
+    throw new Error(`Échec de l'envoi de l'e-mail de bienvenue : ${error.message || error}`);
   }
 }
