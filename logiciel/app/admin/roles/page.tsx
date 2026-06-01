@@ -34,7 +34,6 @@ export default function RolesAdminPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState("Lecteur");
   const [driverContractType, setDriverContractType] = useState("GRAND_ROUTIER");
   const [driverNightWork, setDriverNightWork] = useState(false);
@@ -100,7 +99,6 @@ export default function RolesAdminPage() {
         body: JSON.stringify({
           name: newName,
           email: newEmail,
-          password: newPassword,
           role: newRole,
           driverConfig: newRole === "Chauffeur" ? {
             contract_type: driverContractType,
@@ -122,7 +120,6 @@ export default function RolesAdminPage() {
       setShowCreateModal(false);
       setNewName("");
       setNewEmail("");
-      setNewPassword("");
       setNewRole("Lecteur");
       setDriverContractType("GRAND_ROUTIER");
       setDriverNightWork(false);
@@ -412,10 +409,6 @@ export default function RolesAdminPage() {
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Email</label>
                 <input type="email" required value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="jean.dupont@optigistik.fr" className="w-full border border-gray-200 rounded-xl p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Mot de passe provisoire</label>
-                <input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" className="w-full border border-gray-200 rounded-xl p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Rôle</label>
