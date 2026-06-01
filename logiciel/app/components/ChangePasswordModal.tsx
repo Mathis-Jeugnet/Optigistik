@@ -46,15 +46,23 @@ export default function ChangePasswordModal({ profile, onPasswordChanged, onLogo
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error("Aucun utilisateur connecté.");
 
-      // 1. Mise à jour du mot de passe dans Firebase Auth
-      await updatePassword(currentUser, newPassword);
+      const token = await currentUser.getIdToken(true);
 
-      // 2. Mise à jour du flag dans Firestore
-      const userDocRef = doc(db, "users", profile.uid);
-      await updateDoc(userDocRef, {
-        mustChangePassword: false,
-        passwordChangedAt: new Date()
+      // Appeler l'API sécurisée côté serveur pour contourner firestore.rules
+      const response = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ newPassword })
       });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || "Une erreur est survenue lors de la modification.");
+      }
 
       setSuccess(true);
       
@@ -65,11 +73,7 @@ export default function ChangePasswordModal({ profile, onPasswordChanged, onLogo
 
     } catch (err: any) {
       console.error("Erreur lors de la modification du mot de passe:", err);
-      if (err.code === "auth/requires-recent-login") {
-        setError("Par mesure de sécurité, veuillez vous déconnecter et vous reconnecter avec votre mot de passe temporaire pour effectuer ce changement.");
-      } else {
-        setError(err.message || "Une erreur est survenue lors de la modification.");
-      }
+      setError(err.message || "Une erreur est survenue lors de la modification.");
     } finally {
       setLoading(false);
     }
