@@ -364,6 +364,7 @@ export default function RolesAdminPage() {
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em]">Collaborateur</th>
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em]">Date d'arrivée</th>
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em]">Rôle actuel</th>
+                    <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em]">Statut</th>
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em] text-right">Actions</th>
                   </tr>
                 </thead>
@@ -379,18 +380,7 @@ export default function RolesAdminPage() {
                             {(user.name || user.email).charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <p className="font-bold text-opti-blue text-lg leading-none">{user.name || "N/A"}</p>
-                              {user.mustChangePassword ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-600 border border-amber-100 uppercase tracking-wider shrink-0 leading-none">
-                                  Attente activation
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 uppercase tracking-wider shrink-0 leading-none">
-                                  Actif
-                                </span>
-                              )}
-                            </div>
+                            <p className="font-bold text-opti-blue text-lg mb-0.5">{user.name || "N/A"}</p>
                             <p className="text-slate-400 text-sm font-medium">{user.email}</p>
                           </div>
                         </div>
@@ -405,6 +395,19 @@ export default function RolesAdminPage() {
                             'bg-slate-50 text-slate-500'}`}>
                           {user.role || "Aucun"}
                         </span>
+                      </td>
+                      <td className="p-6">
+                        {user.mustChangePassword ? (
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100 uppercase tracking-wider">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            Attente activation
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 uppercase tracking-wider">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            Actif
+                          </span>
+                        )}
                       </td>
                       <td className="p-6 text-right">
                         <div className="flex items-center justify-end gap-3">
