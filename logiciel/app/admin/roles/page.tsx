@@ -17,6 +17,7 @@ type UserData = {
   name: string;
   role: string;
   createdAt: any;
+  mustChangePassword?: boolean;
 };
 
 const ROLES = ["Admin", "Gestionnaire", "Lecteur", "Chauffeur"];
@@ -378,7 +379,18 @@ export default function RolesAdminPage() {
                             {(user.name || user.email).charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-bold text-opti-blue text-lg mb-0.5">{user.name || "N/A"}</p>
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <p className="font-bold text-opti-blue text-lg leading-none">{user.name || "N/A"}</p>
+                              {user.mustChangePassword ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-600 border border-amber-100 uppercase tracking-wider shrink-0 leading-none">
+                                  Attente activation
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 uppercase tracking-wider shrink-0 leading-none">
+                                  Actif
+                                </span>
+                              )}
+                            </div>
                             <p className="text-slate-400 text-sm font-medium">{user.email}</p>
                           </div>
                         </div>
