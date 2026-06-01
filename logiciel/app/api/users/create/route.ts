@@ -130,7 +130,7 @@ export async function POST(request: Request) {
     }
 
     // 7. Envoi de l'email contenant le mot de passe temporaire
-    await sendTempPasswordEmail(email, name, tempPassword);
+    await sendTempPasswordEmail(email, name, tempPassword, role);
 
     return NextResponse.json({ 
       success: true, 

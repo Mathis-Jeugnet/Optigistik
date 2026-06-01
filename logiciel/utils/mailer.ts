@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Utilitaire d'envoi d'e-mail avec fallback local pour le développement
-export async function sendTempPasswordEmail(email: string, name: string, tempPassword: string): Promise<{ success: boolean; path?: string }> {
+export async function sendTempPasswordEmail(email: string, name: string, tempPassword: string, role: string): Promise<{ success: boolean; path?: string }> {
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;
   const smtpUser = process.env.SMTP_USER;
@@ -30,7 +30,7 @@ export async function sendTempPasswordEmail(email: string, name: string, tempPas
           background: #ffffff;
           border-radius: 16px;
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-          border: 1px border #e2e8f0;
+          border: 1px solid #e2e8f0;
           overflow: hidden;
         }
         .header {
@@ -110,13 +110,17 @@ export async function sendTempPasswordEmail(email: string, name: string, tempPas
         </div>
         <div class="content">
           <p class="welcome">Bonjour ${name},</p>
-          <p>Un administrateur vient de vous créer un compte sur la plateforme de gestion logistique **Optigistik**.</p>
+          <p>Un administrateur vient de vous créer un compte sur la plateforme de gestion logistique <strong>Optigistik</strong>.</p>
           <p>Voici vos identifiants temporaires pour vous connecter :</p>
           
           <div class="credentials-box">
             <div class="credential-row">
               <span class="label">Adresse e-mail :</span><br/>
               <span class="value">${email}</span>
+            </div>
+            <div class="credential-row" style="margin-top: 16px;">
+              <span class="label">Rôle attribué :</span><br/>
+              <span class="value" style="font-family: inherit; font-size: 15px; color: #1e3a8a;">${role}</span>
             </div>
             <div class="credential-row" style="margin-top: 16px;">
               <span class="label">Mot de passe temporaire :</span><br/>
