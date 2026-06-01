@@ -57,6 +57,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Accès refusé. Réservé aux administrateurs.' }, { status: 403 });
     }
 
+    // A. Vérification de l'existence dans Firestore
+    const usersSnapshot = await adminDb.collection('users').where('email', '==', email).get();
+    
+    if (!usersSnapshot.empty) {
+      // L'utilisateur existe bel et bien dans la base Firestore
+      return NextResponse.json({ error: 'Cet email est déjà utilisé.' }, { status: 400 });
+    }
+
+    // B. Nettoyage de l'ancien compte Firebase Auth "fantôme" s'il existe
+    try {
+      const existingUser = await adminAuth.getUserByEmail(email);
+      if (existingUser) {
+        console.log(`[AUTH CLEANUP] Utilisateur ${email} trouvé dans Auth mais pas dans Firestore. Suppression de l'ancien compte Auth...`);
+        await adminAuth.deleteUser(existingUser.uid);
+        // On supprime aussi la collection driver s'il en reste des traces
+        await adminDb.collection('drivers').doc(existingUser.uid).delete();
+      }
+    } catch (authError: any) {
+      // Si l'utilisateur n'existe pas dans Auth, getUserByEmail lève 'auth/user-not-found', ce qui est normal et attendu.
+      if (authError.code !== 'auth/user-not-found') {
+        console.error('[AUTH CLEANUP ERROR] Erreur lors de la vérification de l\'existence Auth:', authError);
+      }
+    }
+
     // 2. Génération automatique du mot de passe temporaire
     const tempPassword = generateSecureTempPassword();
 
