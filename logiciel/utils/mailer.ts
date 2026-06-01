@@ -131,7 +131,7 @@ export async function sendTempPasswordEmail(email: string, name: string, tempPas
           <p style="color: #ef4444; font-weight: 600;">⚠️ Lors de votre toute première connexion, il vous sera demandé de modifier obligatoirement ce mot de passe temporaire pour choisir un mot de passe définitif et sécurisé.</p>
           
           <div class="button-container">
-            <a href="http://localhost:3000" class="button">Se connecter à Optigistik</a>
+            <a href="http://localhost:3001" class="button">Se connecter à Optigistik</a>
           </div>
         </div>
         <div class="footer">
