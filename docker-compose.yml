@@ -23,6 +23,18 @@ services:
     networks:
       - optigistik
 
+  application:
+    build: ./application
+    container_name: application
+    ports:
+      - "8081:8081"
+    environment:
+      - EXPO_USE_FAST_RESOLVER=true
+      - CHOKIDAR_USEPOLLING=true
+    restart: always
+    networks:
+      - optigistik
+
   solveur:
     build: ./solveur
     container_name: solveur
