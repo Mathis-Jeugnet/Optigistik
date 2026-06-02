@@ -26,6 +26,8 @@ services:
   application:
     build: ./application
     container_name: application
+    tty: true
+    stdin_open: true
     ports:
       - "8081:8081"
     environment:
@@ -58,6 +60,8 @@ services:
       _JAVA_OPTIONS: -Xmx8g
     mem_limit: 10g
     restart: always
+    logging:
+      driver: "none"
     networks:
       - optigistik
 

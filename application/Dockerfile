@@ -11,8 +11,11 @@ RUN npm install
 # On copie le reste des fichiers du projet
 COPY . .
 
+# On installe le tunnel ngrok pour Expo
+RUN npm install -g @expo/ngrok
+
 # On expose le port par défaut d'Expo
 EXPOSE 8081
 
-# On lance le serveur Expo
-CMD ["npx", "expo", "start"]
+# On lance le script de démarrage personnalisé qui attend ORS et affiche les liens
+CMD ["node", "start.js"]
