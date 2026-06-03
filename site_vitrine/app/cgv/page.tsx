@@ -72,8 +72,8 @@ export default function CgvPage() {
                     </section>
 
                     <section>
-                        <h2 className="text-xl font-bold text-[#0C1D36] mb-3">8. Évolutions tarifaires</h2>
-                        <p>En cas de modification des prix, notification par email avec entrée en vigueur à la prochaine échéance.</p>
+                        <h2 className="text-xl font-bold text-[#0C1D36] mb-3">8. Evolutions tarifaires</h2>
+                        <p>En cas de modification des prix notification par email entrée en vigueur à la prochaine échéance.</p>
                     </section>
 
                     <section>
@@ -95,7 +95,7 @@ export default function CgvPage() {
                         <h2 className="text-xl font-bold text-[#0C1D36] mb-3">11. Exclusions de responsabilité</h2>
                         <p className="mb-2">Ne relèvent pas d'Optigistik :</p>
                         <ul className="list-disc list-inside space-y-1 text-gray-600">
-                            <li>pertes de chiffre d'affaires</li>
+                            <li>pertes de CA</li>
                             <li>pertes de données non sauvegardées</li>
                             <li>mauvaise utilisation du logiciel</li>
                         </ul>
@@ -103,19 +103,53 @@ export default function CgvPage() {
 
                     <section>
                         <h2 className="text-xl font-bold text-[#0C1D36] mb-3">12. Loi applicable</h2>
-                        <p>Les CGV sont soumises au droit français. Tribunal compétent : Lyon.</p>
+                        <p>Les CGV sont soumises au droit français.</p>
+                        <p className="mt-2"><span className="underline">Tribunal compétent :</span> Lyon</p>
                     </section>
 
                 </div>
 
-                <div className="mt-12 pt-8 border-t border-gray-200">
-                    <a
-                        href="/Conditions Générales.pdf"
-                        download
-                        className="inline-block px-6 py-3 bg-[#0C1D36] text-white rounded-lg text-sm font-medium hover:bg-[#1a2e4d] transition"
-                    >
-                        Télécharger le document complet (PDF)
-                    </a>
+                <div className="mt-12 pt-8 border-t border-gray-200 space-y-6">
+                    <div className="flex flex-wrap gap-3">
+                        <a
+                            href="/Conditions Générales.pdf"
+                            download
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-[#0C1D36] text-white rounded-lg text-sm font-medium hover:bg-[#1a2e4d] transition"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+                                <path d="M8 2v8m0 0l-3-3m3 3l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M3 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                            Télécharger le document complet (PDF)
+                        </a>
+                        <a
+                            href="/Conditions Générales.pdf"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-6 py-3 border border-[#0C1D36] text-[#0C1D36] rounded-lg text-sm font-medium hover:bg-[#0C1D36]/5 transition"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+                                <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+                                <path d="M5 8h6M8 5v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                            Ouvrir dans un nouvel onglet
+                        </a>
+                    </div>
+
+                    <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-gray-100">
+                        <div className="px-4 py-2.5 bg-white border-b border-gray-200 flex items-center gap-2">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden className="text-[#FF453A]">
+                                <rect x="1" y="1" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3"/>
+                                <path d="M4 5h6M4 7h4M4 9h5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+                            </svg>
+                            <span className="text-xs font-medium text-gray-500">Conditions Générales de Vente — Aperçu</span>
+                        </div>
+                        <iframe
+                            src="/Conditions%20G%C3%A9n%C3%A9rales.pdf"
+                            className="w-full h-[720px]"
+                            title="Aperçu des Conditions Générales de Vente"
+                        />
+                    </div>
                 </div>
             </div>
         </div>
