@@ -64,7 +64,7 @@ export default function Navbar() {
           <div className="flex-shrink-0">
             <Link href="/" className="flex items-center gap-2">
               <img
-                src="/assets/LogoOptigistik2.png"
+                src="/assets/LogoOptigistik.png"
                 alt="Optigistik logo"
                 className="h-12 md:h-16 w-auto dark:brightness-0 dark:invert"
               />
