@@ -47,7 +47,6 @@ class Route:
         current_time = self.request.current_time
         current_node_idx = self.vehicle.start_node_idx 
         
-        # --- NOUVEAU : DOUBLE CHRONOMÈTRE RSE ---
         accum_drive = 0
         accum_work = 0
         total_demand = 0
@@ -92,9 +91,8 @@ class Route:
                     for future_idx in range(idx, len(self.nodes)):
                         if future_idx != idx and future_idx in nodes_triggering_reload:
                             break
-                        dynamic_reload_time += self.request.nodes[self.nodes[future_idx]].service_time
+                        dynamic_reload_time += self.request.nodes[self.nodes[future_idx]].loading_time
                     
-                    # 1. Trajet de retour au dépôt (Roulage)
                     if self.request.enforce_break and ((accum_drive + transit_to_depot > self.request.max_continuous_driving_seconds) or 
                                                        (accum_work + transit_to_depot > self.request.max_continuous_work_seconds)):
                         current_time += self.request.break_duration_seconds
@@ -116,7 +114,6 @@ class Route:
                             "loading_duration_min": dynamic_reload_time // 60
                         })
                         
-                    # 2. Temps de chargement au quai (Travail uniquement)
                     if self.request.enforce_break and (accum_work + dynamic_reload_time > self.request.max_continuous_work_seconds):
                         current_time += self.request.break_duration_seconds
                         if generate_timeline:
@@ -138,7 +135,6 @@ class Route:
             transit_time = self.request.time_matrix[current_node_idx][next_node_idx]
             transit_dist = self.request.distance_matrix[current_node_idx][next_node_idx]
 
-            # 3. Trajet vers le client (Roulage)
             if self.request.enforce_break and ((accum_drive + transit_time > self.request.max_continuous_driving_seconds) or 
                                                (accum_work + transit_time > self.request.max_continuous_work_seconds)):
                 current_time += self.request.break_duration_seconds
@@ -155,7 +151,6 @@ class Route:
             if node.time_window:
                 if current_time < node.time_window.start:
                     wait_time = node.time_window.start - current_time
-                    # Une longue attente vaut pour repos légal
                     if self.request.enforce_break and wait_time >= self.request.break_duration_seconds:
                         if generate_timeline and (not self.timeline or self.timeline[-1]["stop_type"] != "BREAK"):
                             self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_ATTENTE", "arrival_time": current_time // 60})
@@ -169,19 +164,18 @@ class Route:
             if generate_timeline:
                 self.timeline.append({"stop_type": "DELIVERY", "client_id": node.id, "arrival_time": current_time // 60})
 
-            # 4. Déchargement chez le client (Travail uniquement)
-            if self.request.enforce_break and (accum_work + node.service_time > self.request.max_continuous_work_seconds):
+            # --- UTILISATION DE UNLOADING_TIME POUR LE CLIENT ---
+            if self.request.enforce_break and (accum_work + node.unloading_time > self.request.max_continuous_work_seconds):
                 current_time += self.request.break_duration_seconds
                 if generate_timeline:
                     self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
                 accum_drive = 0
                 accum_work = 0
 
-            current_time += node.service_time
-            accum_work += node.service_time
+            current_time += node.unloading_time
+            accum_work += node.unloading_time
             current_node_idx = next_node_idx
 
-        # Retour final au dépôt de fin de journée
         end_idx = self.vehicle.end_node_idx
         transit_to_depot = self.request.time_matrix[current_node_idx][end_idx]
         
@@ -321,7 +315,6 @@ class VRPOptimizer:
                 r.nodes = [n for n in r.nodes if n not in ejected_nodes]
                 r.recalculate(generate_timeline=False)
 
-        # --- CORRECTION DE LA DETTE TECHNIQUE (Index -1) ---
         nodes_to_reinsert = list(ejected_nodes)
         for rep in shaken_unperformed_report:
             idx = self._id_to_index(rep["client_id"])
@@ -343,7 +336,6 @@ class VRPOptimizer:
         start_time = time.time()
         logger.info(f"🚀 INITIALISATION MOTEUR DYNAMIQUE MULTI-CŒURS (T={self.request.current_time}s)")
 
-        # --- CORRECTION DE LA DETTE TECHNIQUE (Validation Index) ---
         max_idx = len(self.request.nodes) - 1
         for v in self.request.vehicles:
             if v.start_node_idx > max_idx or v.end_node_idx > max_idx or v.start_node_idx < 0 or v.end_node_idx < 0:
