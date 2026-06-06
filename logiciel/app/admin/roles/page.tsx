@@ -8,7 +8,7 @@ import DashboardLayout from "@/app/components/DashboardLayout";
 import Link from "next/link";
 import { 
   ArrowLeft, Plus, X, UserPlus, ShieldCheck, 
-  Users, Truck, Trash2, Pencil 
+  Users, Truck, Trash2, Pencil, ShieldAlert, CheckCircle, Info 
 } from "lucide-react";
 
 type UserData = {
@@ -17,6 +17,7 @@ type UserData = {
   name: string;
   role: string;
   createdAt: any;
+  mustChangePassword?: boolean;
 };
 
 const ROLES = ["Admin", "Gestionnaire", "Lecteur", "Chauffeur"];
@@ -34,7 +35,6 @@ export default function RolesAdminPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState("Lecteur");
   const [driverContractType, setDriverContractType] = useState("GRAND_ROUTIER");
   const [driverNightWork, setDriverNightWork] = useState(false);
@@ -61,6 +61,17 @@ export default function RolesAdminPage() {
   const [editRole, setEditRole] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  // États pour le système de notifications Toast (Pop-up moderne)
+  const [notifications, setNotifications] = useState<{ id: string; type: 'success' | 'error' | 'info'; message: string }[]>([]);
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setNotifications(prev => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 4500);
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -100,7 +111,6 @@ export default function RolesAdminPage() {
         body: JSON.stringify({
           name: newName,
           email: newEmail,
-          password: newPassword,
           role: newRole,
           driverConfig: newRole === "Chauffeur" ? {
             contract_type: driverContractType,
@@ -122,7 +132,6 @@ export default function RolesAdminPage() {
       setShowCreateModal(false);
       setNewName("");
       setNewEmail("");
-      setNewPassword("");
       setNewRole("Lecteur");
       setDriverContractType("GRAND_ROUTIER");
       setDriverNightWork(false);
@@ -134,7 +143,7 @@ export default function RolesAdminPage() {
       setDriverPhone("");
       setDriverRole("");
       await fetchUsers();
-      alert("Utilisateur créé avec succès !");
+      showNotification("Utilisateur créé avec succès !", "success");
     } catch (error: any) {
       setCreateError(error.message);
     } finally {
@@ -158,14 +167,17 @@ export default function RolesAdminPage() {
         body: JSON.stringify({ targetUid: userToDelete.uid }),
       });
 
-      if (!response.ok) throw new Error("Erreur lors de la suppression");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Erreur lors de la suppression");
+      }
 
       setShowDeleteModal(false);
       setUserToDelete(null);
       await fetchUsers();
-      alert("Utilisateur supprimé avec succès !");
+      showNotification("Utilisateur supprimé avec succès !", "success");
     } catch (error: any) {
-      alert(error.message);
+      showNotification(error.message, "error");
     } finally {
       setIsDeleting(false);
     }
@@ -240,13 +252,17 @@ export default function RolesAdminPage() {
         }),
       });
 
-      if (!response.ok) throw new Error("Erreur lors de la mise à jour");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Erreur lors de la mise à jour");
+      }
 
       setShowEditModal(false);
       await fetchUsers();
-      alert("Utilisateur mis à jour avec succès !");
+      showNotification("Utilisateur mis à jour avec succès !", "success");
     } catch (error: any) {
       setEditError(error.message);
+      showNotification(error.message, "error");
     } finally {
       setIsUpdating(false);
     }
@@ -348,6 +364,7 @@ export default function RolesAdminPage() {
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em]">Collaborateur</th>
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em]">Date d'arrivée</th>
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em]">Rôle actuel</th>
+                    <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em]">Statut</th>
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em] text-right">Actions</th>
                   </tr>
                 </thead>
@@ -378,6 +395,19 @@ export default function RolesAdminPage() {
                             'bg-slate-50 text-slate-500'}`}>
                           {user.role || "Aucun"}
                         </span>
+                      </td>
+                      <td className="p-6">
+                        {user.mustChangePassword ? (
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100 uppercase tracking-wider">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            Attente activation
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 uppercase tracking-wider">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            Actif
+                          </span>
+                        )}
                       </td>
                       <td className="p-6 text-right">
                         <div className="flex items-center justify-end gap-3">
@@ -412,10 +442,6 @@ export default function RolesAdminPage() {
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Email</label>
                 <input type="email" required value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="jean.dupont@optigistik.fr" className="w-full border border-gray-200 rounded-xl p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Mot de passe provisoire</label>
-                <input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" className="w-full border border-gray-200 rounded-xl p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Rôle</label>
@@ -664,6 +690,50 @@ export default function RolesAdminPage() {
           </div>
         </div>
       )}
+
+      {/* Toast Notifications Overlay (Premium Pop-ups) */}
+      <div className="fixed bottom-6 right-6 z-[99999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+        {notifications.map((notif) => (
+          <div 
+            key={notif.id}
+            className={`pointer-events-auto p-4 rounded-2xl shadow-2xl border backdrop-blur-md flex items-start gap-3 animate-in slide-in-from-bottom-10 duration-300 w-full ${
+              notif.type === 'success' 
+                ? 'bg-white/95 border-green-100 text-slate-800' 
+                : notif.type === 'error'
+                ? 'bg-white/95 border-red-100 text-slate-800'
+                : 'bg-white/95 border-blue-100 text-slate-800'
+            }`}
+          >
+            <div className={`p-2 rounded-xl shrink-0 ${
+              notif.type === 'success' 
+                ? 'bg-green-50 text-green-500' 
+                : notif.type === 'error'
+                ? 'bg-red-50 text-opti-red'
+                : 'bg-blue-50 text-blue-500'
+            }`}>
+              {notif.type === 'success' && <CheckCircle className="w-5 h-5" />}
+              {notif.type === 'error' && <ShieldAlert className="w-5 h-5" />}
+              {notif.type === 'info' && <Info className="w-5 h-5" />}
+            </div>
+            
+            <div className="flex-1 pt-0.5">
+              <p className="text-sm font-bold text-slate-900 mb-0.5">
+                {notif.type === 'success' ? 'Succès' : notif.type === 'error' ? 'Erreur' : 'Information'}
+              </p>
+              <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+                {notif.message}
+              </p>
+            </div>
+
+            <button 
+              onClick={() => setNotifications(prev => prev.filter(n => n.id !== notif.id))}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors shrink-0 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
     </RoleGuard>
   );
 }

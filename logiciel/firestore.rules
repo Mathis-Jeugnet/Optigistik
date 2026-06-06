@@ -20,8 +20,10 @@ service cloud.firestore {
       // Un utilisateur peut lire son propre profil, l'Admin peut tout lire
       allow read: if isAuthenticated() && (request.auth.uid == userId || getUserRole() == 'Admin');
       
-      // Seul un Admin peut créer, modifier ou supprimer des utilisateurs
-      allow write: if isAuthenticated() && getUserRole() == 'Admin';
+      // Seul un Admin peut créer ou supprimer des utilisateurs.
+      // Un utilisateur connecté peut mettre à jour son propre profil (ex: changement de mot de passe).
+      allow create, delete: if isAuthenticated() && getUserRole() == 'Admin';
+      allow update: if isAuthenticated() && (request.auth.uid == userId || getUserRole() == 'Admin');
     }
 
     // ---------------------------------------------------------
