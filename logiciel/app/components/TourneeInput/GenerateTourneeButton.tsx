@@ -9,6 +9,13 @@ import { db } from '@/lib/firebase'
 import { Check, Copy, X, Loader2, MapPin, Group, AlertCircle, Send, Code, Grid3X3 } from 'lucide-react'
 import { generateAndSaveDistanceMatrix, MatrixPoint, DistanceMatrixResult } from '@/services/distanceMatrix'
 
+function secondsToHHmm(s: number): string {
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${pad(hours)}:${pad(minutes)}`;
+}
+
 export default function GenerateTourneeButton() {
   const [isOpen, setIsOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -286,7 +293,9 @@ export default function GenerateTourneeButton() {
                                 <p className="text-xs font-bold text-slate-700 truncate">{node.address}</p>
                                 <div className="flex gap-2 mt-1">
                                   <span className="text-[10px] text-slate-400 font-medium">{node.pallets} palettes</span>
-                                  <span className="text-[10px] text-slate-400 font-medium">{node.time_window.start} - {node.time_window.end}</span>
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    {secondsToHHmm(node.time_window.start)} - {secondsToHHmm(node.time_window.end)}
+                                  </span>
                                 </div>
                               </div>
                             </div>
