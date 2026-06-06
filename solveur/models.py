@@ -10,7 +10,8 @@ class Node(BaseModel):
     x: float
     y: float
     demand: int
-    service_time: int
+    loading_time: int
+    unloading_time: int
     time_window: Optional[TimeWindow] = None
     allowed_vehicle_types: Optional[List[str]] = None
     locked_vehicle_id: Optional[str] = None
@@ -35,7 +36,7 @@ class OptimizationRequest(BaseModel):
     time_window_penalty: int = 0
     enforce_break: bool = True
     break_duration_seconds: int = 2700
-    max_continuous_driving_seconds: int = 16200  # 4h30 au volant
-    max_continuous_work_seconds: int = 21600     # 6h00 de travail continu (conduite + manutention)
+    max_continuous_driving_seconds: int = 16200
+    max_continuous_work_seconds: int = 21600
     current_time: int = 0
     allow_multi_trip: bool = False

@@ -69,9 +69,9 @@ class RealisticVRPGenerator:
             time_matrix.append(time_row)
         
         nodes = []
-        nodes.append({"id": "ENTREPOT_CENTRAL", "x": locations[0][0], "y": locations[0][1], "demand": 0, "service_time": 0, "time_window": {"start": 0, "end": 86400}})
-        nodes.append({"id": "DEPOT_SATELLITE_NORD", "x": locations[1][0], "y": locations[1][1], "demand": 0, "service_time": 0, "time_window": {"start": 0, "end": 86400}})
-        nodes.append({"id": "DEPOT_SATELLITE_SUD", "x": locations[2][0], "y": locations[2][1], "demand": 0, "service_time": 0, "time_window": {"start": 0, "end": 86400}})
+        nodes.append({"id": "ENTREPOT_CENTRAL", "x": locations[0][0], "y": locations[0][1], "demand": 0, "loading_time": 0, "unloading_time": 0, "time_window": {"start": 0, "end": 86400}})
+        nodes.append({"id": "DEPOT_SATELLITE_NORD", "x": locations[1][0], "y": locations[1][1], "demand": 0, "loading_time": 0, "unloading_time": 0, "time_window": {"start": 0, "end": 86400}})
+        nodes.append({"id": "DEPOT_SATELLITE_SUD", "x": locations[2][0], "y": locations[2][1], "demand": 0, "loading_time": 0, "unloading_time": 0, "time_window": {"start": 0, "end": 86400}})
         
         for i in range(3, num_nodes):
             service_time = random.randint(300, 1200)
@@ -98,7 +98,8 @@ class RealisticVRPGenerator:
                 "x": locations[i][0],
                 "y": locations[i][1],
                 "demand": random.randint(1, 5) if not force_impossible_constraints else random.randint(45, 60),
-                "service_time": service_time,
+                "loading_time": service_time // 2,
+                "unloading_time": service_time,
                 "time_window": {"start": time_window_start, "end": time_window_end} if i % 7 != 0 else {"start": time_window_start, "end": time_window_start + 3600},
                 "allowed_vehicle_types": allowed,
                 "locked_vehicle_id": None,
