@@ -8,7 +8,7 @@ import DashboardLayout from "@/app/components/DashboardLayout";
 import Link from "next/link";
 import { 
   ArrowLeft, Plus, X, UserPlus, ShieldCheck, 
-  Users, Truck, Trash2, Pencil, ShieldAlert, CheckCircle, Info 
+  Users, Truck, Trash2, Pencil, Check, AlertCircle 
 } from "lucide-react";
 
 type UserData = {
@@ -29,6 +29,14 @@ const COMMON_LANGUAGES = [
 export default function RolesAdminPage() {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 4000);
+  };
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // États pour la création d'utilisateur
@@ -376,6 +384,7 @@ export default function RolesAdminPage() {
                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg shadow-sm
                             ${user.role?.toLowerCase() === 'admin' ? 'bg-purple-100 text-purple-600' : 
                               user.role?.toLowerCase() === 'gestionnaire' ? 'bg-blue-100 text-blue-600' : 
+                              user.role?.toLowerCase() === 'chauffeur' ? 'bg-green-100 text-green-600' : 
                               'bg-slate-100 text-slate-500'}`}>
                             {(user.name || user.email).charAt(0).toUpperCase()}
                           </div>
@@ -392,6 +401,7 @@ export default function RolesAdminPage() {
                         <span className={`inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider
                           ${user.role?.toLowerCase() === 'admin' ? 'bg-purple-50 text-purple-600' : 
                             user.role?.toLowerCase() === 'gestionnaire' ? 'bg-blue-50 text-blue-600' : 
+                            user.role?.toLowerCase() === 'chauffeur' ? 'bg-green-50 text-green-600' : 
                             'bg-slate-50 text-slate-500'}`}>
                           {user.role || "Aucun"}
                         </span>
@@ -422,6 +432,14 @@ export default function RolesAdminPage() {
             </div>
           </div>
         </div>
+
+        {notification && (
+          <div className={`fixed bottom-8 right-8 z-[9999] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-xl animate-in slide-in-from-bottom-5 duration-300 border
+            ${notification.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-rose-50 text-rose-800 border-rose-100'}`}>
+            {notification.type === 'success' ? <Check className="w-5 h-5 text-emerald-600" /> : <AlertCircle className="w-5 h-5 text-rose-600" />}
+            <span className="font-semibold text-sm">{notification.message}</span>
+          </div>
+        )}
       </DashboardLayout>
 
       {/* MODALE CRÉATION */}
