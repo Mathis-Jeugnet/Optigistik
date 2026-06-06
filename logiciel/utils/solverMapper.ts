@@ -16,7 +16,7 @@ interface SolverNode {
   priority_level: number;
 }
 
-function timeToSeconds(timeStr: string): number {
+export function timeToSeconds(timeStr: string): number {
   const [hours, minutes] = timeStr.split(':').map(Number);
   return (hours * 3600) + (minutes * 60);
 }

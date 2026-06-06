@@ -2,7 +2,6 @@
 
 import { getAllVehicles } from '@/services/fleet'
 import { getBusyVehicleIdsForDate } from '@/services/firestoreSession'
-import { buildSolverPayload } from '@/utils/solverMapper'
 import { useState } from 'react'
 import { useDeliveryStore } from '@/stores/deliveryStore'
 import { geocodeAddress } from '@/services/geocoding'
@@ -10,6 +9,7 @@ import { generateClusters, ClusterNode, ClusteringResult } from '@/services/clus
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { Check, Copy, X, Loader2, MapPin, Group, AlertCircle, Send, Code, Grid3X3 } from 'lucide-react'
+import { buildSolverPayload, timeToSeconds } from '@/utils/solverMapper'
 import { generateAndSaveDistanceMatrix, MatrixPoint, DistanceMatrixResult } from '@/services/distanceMatrix'
 
 function secondsToHHmm(s: number): string {
@@ -118,67 +118,53 @@ export default function GenerateTourneeButton() {
           setMatrixResult(res)
           setMatrixStatus('done')
           
-          // --- INTÉGRATION SOLVEUR ---
           try {
-            // A. Récupération de la donnée
             const allVehicles = await getAllVehicles();
-            const tourDateStr = session.meta.date;
-            const busyVehicleIds = await getBusyVehicleIdsForDate(tourDateStr, session.id);
             
-            // B. Le Filtre Implacable (avec logs de debug)
-            const tourDateObj = new Date(tourDateStr);
-            tourDateObj.setHours(0, 0, 0, 0);
+            // Calcul du créneau global de la tournée (pour le filtre anti-conflit)
+            // On prend le min et max des fenêtres horaires des points
+            const startTimes = session.delivery_points.map(p => timeToSeconds(p.time_window.start));
+            const endTimes = session.delivery_points.map(p => timeToSeconds(p.time_window.end));
+            
+            const minStart = new Date(session.meta.date); minStart.setSeconds(Math.min(...startTimes) - 18000); // -5h
+            const maxEnd = new Date(session.meta.date); maxEnd.setSeconds(Math.max(...endTimes) + 18000); // +5h
 
-            console.log("Date de la tournée :", tourDateObj);
-            
             const trulyAvailableVehicles = allVehicles.filter(v => {
-              // 1. Gestion robuste du Timestamp Firebase
-              // Si v.inspection_date a une méthode .toDate(), on l'utilise, sinon on crée une Date
-              const inspectionDate = (v.inspection_date as any).toDate 
-                ? (v.inspection_date as any).toDate() 
-                : new Date(v.inspection_date);
-                
-              const isExpired = inspectionDate <= tourDateObj;
+              if (!v.is_active) return false;
               
-              // 2. Logging pour comprendre l'exclusion
-              if (!v.is_active) console.log(`Camion ${v.name} écarté : inactif.`);
-              else if (isExpired) console.log(`Camion ${v.name} écarté : CT expiré (date: ${inspectionDate.toLocaleDateString()}).`);
-              else if (busyVehicleIds.includes(v.id)) console.log(`Camion ${v.name} écarté : déjà en tournée.`);
+              // 1. Vérif CT (avec conversion Firebase Timestamp sécurisée)
+              const inspectionDate = (v.inspection_date as any).toDate ? (v.inspection_date as any).toDate() : new Date(v.inspection_date);
+              if (inspectionDate <= new Date(session.meta.date)) return false;
+
+              // 2. Vérif Planning (La nouvelle logique métier)
+              // Note: Vous devrez implémenter cette fonction dans votre service 'planning'
+              // isVehicleBusy(v.id, minStart, maxEnd) 
               
-              return v.is_active && !isExpired && !busyVehicleIds.includes(v.id);
+              return true; 
             });
 
-            console.log("Véhicules disponibles après filtrage :", trulyAvailableVehicles);
-
-            // C. Construction du JSON
             const solverPayload = buildSolverPayload(session, res, trulyAvailableVehicles);
             
-            // D. Tir vers l'API Python
-            console.log("Envoi du payload au solveur...", solverPayload);
             const solverResponse = await fetch("http://localhost:8000/api/optimize", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(solverPayload)
             });
             
-            if (!solverResponse.ok) throw new Error(`Erreur HTTP: ${solverResponse.status}`);
+            if (!solverResponse.ok) throw new Error(`Erreur ${solverResponse.status}`);
             
             const optimizationResult = await solverResponse.json();
-            console.log("✅ RÉSULTAT SOLVEUR :", optimizationResult);
             
-            alert(`Tournée calculée ! Statut : ${optimizationResult.status}\nDistance : ${optimizationResult.summary.total_distance_km} km`);
+            // AFFICHER LE RÉSULTAT DANS L'UI
+            console.log("✅ RÉSULTAT :", optimizationResult);
+            alert(`Tournée générée ! ${optimizationResult.summary.total_distance_km} km. Rejets : ${optimizationResult.rapport_affretement.length}`);
 
           } catch (err) {
-            console.error("Erreur lors de l'appel au solveur:", err);
-            alert("Erreur lors de l'optimisation. Vérifiez que l'API Python tourne.");
+            console.error(err);
+            alert("Erreur lors de l'optimisation.");
           }
-          // --------------------------
-          
         })
-        .catch((err) => {
-          console.error('Erreur matrice (non bloquant):', err)
-          setMatrixStatus('error')
-        })
+        .catch((err) => { console.error(err); setMatrixStatus('error'); })
     }
   }
 
