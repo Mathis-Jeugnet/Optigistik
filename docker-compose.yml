@@ -23,6 +23,20 @@ services:
     networks:
       - optigistik
 
+  application:
+    build: ./application
+    container_name: application
+    tty: true
+    stdin_open: true
+    ports:
+      - "8081:8081"
+    environment:
+      - EXPO_USE_FAST_RESOLVER=true
+      - CHOKIDAR_USEPOLLING=true
+    restart: always
+    networks:
+      - optigistik
+
   solveur:
     build: ./solveur
     container_name: solveur
@@ -46,6 +60,8 @@ services:
       _JAVA_OPTIONS: -Xmx8g
     mem_limit: 10g
     restart: always
+    logging:
+      driver: "none"
     networks:
       - optigistik
 
