@@ -11,6 +11,7 @@ import { db } from '@/lib/firebase'
 import { Check, Copy, X, Loader2, MapPin, Group, AlertCircle, Send, Code, Grid3X3 } from 'lucide-react'
 import { buildSolverPayload, timeToSeconds } from '@/utils/solverMapper'
 import { generateAndSaveDistanceMatrix, MatrixPoint, DistanceMatrixResult } from '@/services/distanceMatrix'
+import { saveVehicleTrips } from '@/services/planning'
 
 function secondsToHHmm(s: number): string {
   const hours = Math.floor(s / 3600);
@@ -152,12 +153,38 @@ export default function GenerateTourneeButton() {
             });
             
             if (!solverResponse.ok) throw new Error(`Erreur ${solverResponse.status}`);
-            
-            const optimizationResult = await solverResponse.json();
-            
+                        
             // AFFICHER LE RÉSULTAT DANS L'UI
-            console.log("✅ RÉSULTAT :", optimizationResult);
-            alert(`Tournée générée ! ${optimizationResult.summary.total_distance_km} km. Rejets : ${optimizationResult.rapport_affretement.length}`);
+            // 1. Sauvegarder dans Firebase
+            const optimizationResult = await solverResponse.json();
+
+            if (optimizationResult.status === "success" || optimizationResult.status === "partial_success") {
+              try {
+                // A. Enregistrement dans 'vehicle_trips' pour le planning réel
+                // Ici, vous mappez les routes du solveur vers des créneaux horaires
+                const trips = optimizationResult.vehicles.map((v: any) => ({
+                  vehicle_id: v.vehicle_id,
+                  session_id: session.id,
+                  start_time: new Date(new Date(session.meta.date).setSeconds(v.route[0].arrival_time)),
+                  end_time: new Date(new Date(session.meta.date).setSeconds(v.route[v.route.length-1].arrival_time)),
+                  status: 'PLANNED'
+                }));
+                await saveVehicleTrips(trips); // Votre fonction du service planning
+
+                // B. Mise à jour de la session pour historique
+                await updateDoc(doc(db, 'delivery_sessions', session.id), {
+                  status: "VALIDATED",
+                  optimized_routes: optimizationResult.vehicles,
+                  summary: optimizationResult.summary,
+                  updatedAt: new Date()
+                });
+                
+                alert("Tournée validée et planning des camions mis à jour avec succès !");
+              } catch (e) {
+                console.error("Erreur sauvegarde Firebase:", e);
+                alert("Optimisation réussie mais erreur lors de la sauvegarde.");
+              }
+            }
 
           } catch (err) {
             console.error(err);
