@@ -12,6 +12,16 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 
+export async function getAllVehicles(): Promise<Vehicle[]> {
+  try {
+    const snapshot = await getDocs(collection(db, "vehicles"));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle));
+  } catch (error) {
+    console.error("Erreur lors de la récupération des véhicules:", error);
+    return [];
+  }
+}
+
 export interface VehicleType {
   id: string;
   name: string;

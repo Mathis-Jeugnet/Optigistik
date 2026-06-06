@@ -1,5 +1,8 @@
 'use client'
 
+import { getAllVehicles } from '@/services/fleet'
+import { getBusyVehicleIdsForDate } from '@/services/firestoreSession'
+import { buildSolverPayload } from '@/utils/solverMapper'
 import { useState } from 'react'
 import { useDeliveryStore } from '@/stores/deliveryStore'
 import { geocodeAddress } from '@/services/geocoding'
@@ -107,13 +110,70 @@ export default function GenerateTourneeButton() {
     setUnlocated(failed)
     setIsProcessing(false)
 
-    // 7. Calcul de la matrice en arrière-plan (non bloquant pour l'UI)
+    // 7. Calcul de la matrice et appel au Solveur
     if (matrixPoints.length >= 2) {
       setMatrixStatus('computing')
       generateAndSaveDistanceMatrix(session.id, matrixPoints)
-        .then((res) => {
+        .then(async (res) => {
           setMatrixResult(res)
           setMatrixStatus('done')
+          
+          // --- INTÉGRATION SOLVEUR ---
+          try {
+            // A. Récupération de la donnée
+            const allVehicles = await getAllVehicles();
+            const tourDateStr = session.meta.date;
+            const busyVehicleIds = await getBusyVehicleIdsForDate(tourDateStr, session.id);
+            
+            // B. Le Filtre Implacable (avec logs de debug)
+            const tourDateObj = new Date(tourDateStr);
+            tourDateObj.setHours(0, 0, 0, 0);
+
+            console.log("Date de la tournée :", tourDateObj);
+            
+            const trulyAvailableVehicles = allVehicles.filter(v => {
+              // 1. Gestion robuste du Timestamp Firebase
+              // Si v.inspection_date a une méthode .toDate(), on l'utilise, sinon on crée une Date
+              const inspectionDate = (v.inspection_date as any).toDate 
+                ? (v.inspection_date as any).toDate() 
+                : new Date(v.inspection_date);
+                
+              const isExpired = inspectionDate <= tourDateObj;
+              
+              // 2. Logging pour comprendre l'exclusion
+              if (!v.is_active) console.log(`Camion ${v.name} écarté : inactif.`);
+              else if (isExpired) console.log(`Camion ${v.name} écarté : CT expiré (date: ${inspectionDate.toLocaleDateString()}).`);
+              else if (busyVehicleIds.includes(v.id)) console.log(`Camion ${v.name} écarté : déjà en tournée.`);
+              
+              return v.is_active && !isExpired && !busyVehicleIds.includes(v.id);
+            });
+
+            console.log("Véhicules disponibles après filtrage :", trulyAvailableVehicles);
+
+            // C. Construction du JSON
+            const solverPayload = buildSolverPayload(session, res, trulyAvailableVehicles);
+            
+            // D. Tir vers l'API Python
+            console.log("Envoi du payload au solveur...", solverPayload);
+            const solverResponse = await fetch("http://localhost:8000/api/optimize", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(solverPayload)
+            });
+            
+            if (!solverResponse.ok) throw new Error(`Erreur HTTP: ${solverResponse.status}`);
+            
+            const optimizationResult = await solverResponse.json();
+            console.log("✅ RÉSULTAT SOLVEUR :", optimizationResult);
+            
+            alert(`Tournée calculée ! Statut : ${optimizationResult.status}\nDistance : ${optimizationResult.summary.total_distance_km} km`);
+
+          } catch (err) {
+            console.error("Erreur lors de l'appel au solveur:", err);
+            alert("Erreur lors de l'optimisation. Vérifiez que l'API Python tourne.");
+          }
+          // --------------------------
+          
         })
         .catch((err) => {
           console.error('Erreur matrice (non bloquant):', err)
