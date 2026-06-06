@@ -40,6 +40,8 @@ services:
   solveur:
     build: ./solveur
     container_name: solveur
+    volumes:
+      - ./solveur:/app
     ports:
       - "8000:8000"
     restart: always
