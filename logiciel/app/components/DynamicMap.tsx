@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-routing-machine";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
+import { geocodeAddress } from "@/services/geocoding"; // AJOUT DE L'IMPORT
 
 // Fix Leaflet's default icon path issues avec React/Next.js
 const DefaultIcon = L.icon({
@@ -30,19 +31,19 @@ function Routing({ waypoints, color, name }: RouteProps) {
   const map = useMap();
 
   useEffect(() => {
-    if (!map) return;
+    if (!map || waypoints.length < 2) return;
 
     const controlOptions: any = {
       waypoints: waypoints,
       routeWhileDragging: true,
-      showAlternatives: false, // Masque les routes alternatives pour ne pas surcharger
-      fitSelectedRoutes: false, // Désactivé pour que la carte ne zoome pas excessivement sur chaque route
+      showAlternatives: false,
+      fitSelectedRoutes: false,
       lineOptions: {
         styles: [{ color: color, weight: 5, opacity: 0.8 }],
         extendToWaypoints: true,
         missingRouteTolerance: 0
       },
-      show: false, // Pas d'instructions écrites
+      show: false,
       
       createMarker: function(i: number, wp: any, nWps: number) {
         const isStart = i === 0;
@@ -112,15 +113,13 @@ function MapResizer({ isFullScreen }: { isFullScreen?: boolean }) {
   return null;
 }
 
-// Composant interatif pour recentrer la carte
 function RecenterButton({ position }: { position: L.LatLngExpression }) {
   const map = useMap();
 
   const handleRecenter = () => {
-    // Animation fluide pour revenir au centre
     map.flyTo(position, 5, {
       animate: true,
-      duration: 1.5 // Durée du voyage
+      duration: 1.5
     });
   };
 
@@ -137,18 +136,91 @@ function RecenterButton({ position }: { position: L.LatLngExpression }) {
   );
 }
 
-// Jeu de données fictives couvrant l'Europe et la zone frontalière
-const MOCK_ROUTES = [
-  { id: 1, name: "Paris - Berlin", color: "#0ea5e9", waypoints: [L.latLng(48.8566, 2.3522), L.latLng(52.52, 13.405)] },
-  { id: 2, name: "Lyon - Barcelone", color: "#ef4444", waypoints: [L.latLng(45.764, 4.8357), L.latLng(41.3851, 2.1734)] },
-  { id: 3, name: "Marseille - Milan - Vienne", color: "#10b981", waypoints: [L.latLng(43.2965, 5.3698), L.latLng(45.4642, 9.19), L.latLng(48.2082, 16.3738)] },
-  { id: 4, name: "Lille - Amsterdam", color: "#f59e0b", waypoints: [L.latLng(50.6292, 3.0573), L.latLng(52.3676, 4.9041)] },
-  { id: 5, name: "Bordeaux - Lisbonne", color: "#8b5cf6", waypoints: [L.latLng(44.8378, -0.5792), L.latLng(38.7223, -9.1393)] },
-];
+interface DynamicMapProps {
+  isFullScreen?: boolean;
+  activeSessions?: any[];
+}
 
-export default function DynamicMap({ isFullScreen }: { isFullScreen?: boolean }) {
-  // Centre de la France avec un dé-zoom pour voir l'Europe
+export default function DynamicMap({ isFullScreen, activeSessions = [] }: DynamicMapProps) {
   const centerPosition: L.LatLngExpression = [46.2276, 2.2137];
+  const colors = ["#0ea5e9", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
+
+  const [routesToRender, setRoutesToRender] = useState<any[]>([]);
+
+  // Construction asynchrone des routes pour résoudre les coordonnées
+  useEffect(() => {
+    let isActive = true;
+
+    async function buildRoutes() {
+      const parsedRoutes: any[] = [];
+      
+      for (let sIdx = 0; sIdx < activeSessions.length; sIdx++) {
+        const session = activeSessions[sIdx];
+
+        // 1. Résolution des dépôts (s'ils n'ont pas déjà leurs coordonnées dans la DB)
+        const originGeo = await geocodeAddress(session.origin_node.address);
+        const endGeo = await geocodeAddress(session.end_node.address);
+
+        // 2. Indexation de tous les points de livraison pour recherche rapide
+        const allNodes = session.clusters ? session.clusters.flatMap((c: any) => c.nodes) : [];
+
+        if (session.optimized_routes && Array.isArray(session.optimized_routes)) {
+          session.optimized_routes.forEach((vehicle: any, vIdx: number) => {
+            const waypoints: L.LatLng[] = [];
+
+            if (vehicle.route && Array.isArray(vehicle.route)) {
+              vehicle.route.forEach((step: any) => {
+                const cid = step.client_id;
+
+                // A. Le Dépôt de départ (ou un rechargement au dépôt)
+                if (cid === "DEPOT_START" && originGeo) {
+                  waypoints.push(L.latLng(originGeo.lat, originGeo.lng));
+                } 
+                // B. Le Dépôt d'arrivée
+                else if (cid === "DEPOT_END" && endGeo) {
+                  waypoints.push(L.latLng(endGeo.lat, endGeo.lng));
+                } 
+                // C. Les Pauses (on ne trace rien géographiquement)
+                else if (cid.startsWith("PAUSE") || step.stop_type === "BREAK") {
+                  return;
+                } 
+                // D. Les vrais points de livraison
+                else {
+                  // Le solveur peut fractionner une livraison : "ID_PART_1", "ID_PART_FINAL"
+                  // On récupère l'ID original en coupant au niveau de "_PART_"
+                  const baseId = cid.split('_PART_')[0];
+                  const node = allNodes.find((n: any) => n.id === baseId);
+                  
+                  if (node && node.lat && node.lng) {
+                    waypoints.push(L.latLng(node.lat, node.lng));
+                  }
+                }
+              });
+            }
+
+            if (waypoints.length >= 2) {
+              parsedRoutes.push({
+                id: `${session.id}-${vehicle.vehicle_id}-${vIdx}`,
+                name: `${session.meta?.name || 'Tournée'} - Veh. ${vIdx + 1}`,
+                color: colors[(sIdx + vIdx) % colors.length],
+                waypoints: waypoints
+              });
+            }
+          });
+        }
+      }
+
+      if (isActive) {
+        setRoutesToRender(parsedRoutes);
+      }
+    }
+
+    buildRoutes();
+
+    return () => {
+      isActive = false;
+    };
+  }, [activeSessions]);
 
   return (
     <MapContainer
@@ -160,14 +232,12 @@ export default function DynamicMap({ isFullScreen }: { isFullScreen?: boolean })
       <MapResizer isFullScreen={isFullScreen} />
       <RecenterButton position={centerPosition} />
 
-      {/* Style de carte Stadia Alidade Smooth */}
       <TileLayer
         attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>, &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors'
         url="https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
       />
 
-      {/* Rendu dynamique de multiples itinéraires partout en Europe */}
-      {MOCK_ROUTES.map((route) => (
+      {routesToRender.map((route) => (
         <Routing
           key={route.id}
           name={route.name}
