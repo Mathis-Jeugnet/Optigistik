@@ -1,14 +1,35 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { sendTempPasswordEmail } from '@/utils/mailer';
 
 export const dynamic = 'force-dynamic';
 
+function generateSecureTempPassword() {
+  const charsUpper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const charsLower = "abcdefghijklmnopqrstuvwxyz";
+  const charsNumbers = "0123456789";
+  const charsSpecial = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+  
+  let password = "";
+  password += charsUpper[Math.floor(Math.random() * charsUpper.length)];
+  password += charsLower[Math.floor(Math.random() * charsLower.length)];
+  password += charsNumbers[Math.floor(Math.random() * charsNumbers.length)];
+  password += charsSpecial[Math.floor(Math.random() * charsSpecial.length)];
+  
+  const allChars = charsUpper + charsLower + charsNumbers + charsSpecial;
+  for (let i = 0; i < 8; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+  
+  return password.split('').sort(() => 0.5 - Math.random()).join('');
+}
+
 export async function POST(request: Request) {
   try {
-    const { name, email, password, role, driverConfig } = await request.json();
+    const { name, email, role, driverConfig } = await request.json();
 
-    if (!name || !email || !password || !role) {
-      return NextResponse.json({ error: 'Tous les champs sont requis (nom, email, password, role)' }, { status: 400 });
+    if (!name || !email || !role) {
+      return NextResponse.json({ error: 'Tous les champs sont requis (nom, email, role)' }, { status: 400 });
     }
 
     if (role === 'Chauffeur') {
@@ -36,26 +57,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Accès refusé. Réservé aux administrateurs.' }, { status: 403 });
     }
 
-    // 2. Création de l'utilisateur dans Firebase Auth
+    // A. Vérification de l'existence dans Firestore
+    const usersSnapshot = await adminDb.collection('users').where('email', '==', email).get();
+    
+    if (!usersSnapshot.empty) {
+      // L'utilisateur existe bel et bien dans la base Firestore
+      return NextResponse.json({ error: 'Cet email est déjà utilisé.' }, { status: 400 });
+    }
+
+    // B. Nettoyage de l'ancien compte Firebase Auth "fantôme" s'il existe
+    try {
+      const existingUser = await adminAuth.getUserByEmail(email);
+      if (existingUser) {
+        console.log(`[AUTH CLEANUP] Utilisateur ${email} trouvé dans Auth mais pas dans Firestore. Suppression de l'ancien compte Auth...`);
+        await adminAuth.deleteUser(existingUser.uid);
+        // On supprime aussi la collection driver s'il en reste des traces
+        await adminDb.collection('drivers').doc(existingUser.uid).delete();
+      }
+    } catch (authError: any) {
+      // Si l'utilisateur n'existe pas dans Auth, getUserByEmail lève 'auth/user-not-found', ce qui est normal et attendu.
+      if (authError.code !== 'auth/user-not-found') {
+        console.error('[AUTH CLEANUP ERROR] Erreur lors de la vérification de l\'existence Auth:', authError);
+      }
+    }
+
+    // 2. Génération automatique du mot de passe temporaire
+    const tempPassword = generateSecureTempPassword();
+
+    // 3. Création de l'utilisateur dans Firebase Auth
     const userRecord = await adminAuth.createUser({
       email,
-      password,
+      password: tempPassword,
       displayName: name,
     });
 
-    // 3. Attribution du rôle (Custom Claims)
+    // 4. Attribution du rôle (Custom Claims)
     await adminAuth.setCustomUserClaims(userRecord.uid, { role });
 
-    // 4. Création du profil dans Firestore (users)
+    // 5. Création du profil dans Firestore (users)
     await adminDb.collection('users').doc(userRecord.uid).set({
       name,
       email,
       role,
+      mustChangePassword: true, // Flag pour forcer le changement au premier login
       createdAt: new Date(),
       uid: userRecord.uid
     });
 
-    // 5. Si Chauffeur, création de l'entité Driver
+    // 6. Si Chauffeur, création de l'entité Driver
     if (role === 'Chauffeur') {
       const nameParts = name.trim().split(' ');
       const lastName = nameParts.length > 1 ? nameParts.pop() : name;
@@ -79,6 +128,9 @@ export async function POST(request: Request) {
         assignedVehicles: []
       });
     }
+
+    // 7. Envoi de l'email contenant le mot de passe temporaire
+    await sendTempPasswordEmail(email, name, tempPassword, role);
 
     return NextResponse.json({ 
       success: true, 

@@ -9,6 +9,13 @@ import { db } from '@/lib/firebase'
 import { Check, Copy, X, Loader2, MapPin, Group, AlertCircle, Send, Code, Grid3X3 } from 'lucide-react'
 import { generateAndSaveDistanceMatrix, MatrixPoint, DistanceMatrixResult } from '@/services/distanceMatrix'
 
+function secondsToHHmm(s: number): string {
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${pad(hours)}:${pad(minutes)}`;
+}
+
 export default function GenerateTourneeButton() {
   const [isOpen, setIsOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -135,14 +142,14 @@ export default function GenerateTourneeButton() {
 
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !isProcessing && setIsOpen(false)} />
           
           <div className="relative w-full max-w-4xl bg-white rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in duration-200">
             {/* Header */}
             <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
               <div>
                 <h3 className="text-2xl font-bold text-opti-blue font-display">Optimisation de la tournée</h3>
-                <p className="text-slate-500 text-sm mt-1">Groupement intelligent & stockage Firebase synchronisé</p>
+                <p className="text-slate-500 text-sm mt-1">Groupement intelligent de vos points de livraison</p>
               </div>
               <div className="flex items-center gap-2">
                 {result && (
@@ -286,7 +293,9 @@ export default function GenerateTourneeButton() {
                                 <p className="text-xs font-bold text-slate-700 truncate">{node.address}</p>
                                 <div className="flex gap-2 mt-1">
                                   <span className="text-[10px] text-slate-400 font-medium">{node.pallets} palettes</span>
-                                  <span className="text-[10px] text-slate-400 font-medium">{node.time_window.start} - {node.time_window.end}</span>
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    {secondsToHHmm(node.time_window.start)} - {secondsToHHmm(node.time_window.end)}
+                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -310,10 +319,6 @@ export default function GenerateTourneeButton() {
               </button>
               
               <div className="flex gap-3">
-                <div className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-green-600 bg-green-50 rounded-xl mr-2">
-                  <Check className="w-3 h-3" />
-                  Firebase Synchronisé
-                </div>
                 {matrixStatus === 'computing' && (
                   <div className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-600 bg-blue-50 rounded-xl mr-2">
                     <Loader2 className="w-3 h-3 animate-spin" />
