@@ -42,8 +42,9 @@ export async function POST(request: Request) {
     // 4. Suppression dans Firebase Auth
     await adminAuth.deleteUser(targetUid);
 
-    // 5. Suppression dans Firestore
+    // 5. Suppression dans Firestore (users et potentiellement drivers)
     await adminDb.collection('users').doc(targetUid).delete();
+    await adminDb.collection('drivers').doc(targetUid).delete();
 
     return NextResponse.json({ 
       success: true, 

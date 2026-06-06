@@ -1,0 +1,14 @@
+ors:
+  endpoints:
+    matrix:
+      maximum_routes: 200000
+      maximum_visited_nodes: 1000000
+  engine:
+    profile_default:
+      build:
+        source_file: /home/ors/files/france-latest.osm.pbf
+    profiles:
+      driving-hgv:
+        enabled: true
+        build:
+          source_file: /home/ors/files/france-latest.osm.pbf

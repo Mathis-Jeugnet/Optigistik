@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, UserPlus, Pencil } from "lucide-react";
+import { Users } from "lucide-react";
 import { Driver } from "@/types";
-import { getDrivers } from "@/services/drivers";
-import DriverEditModal from "./DriverEditModal";
+import { subscribeToDrivers } from "@/services/drivers";
 
 interface DriversListProps {
   onSelectDriver: (driver: Driver) => void;
@@ -19,15 +18,13 @@ const statusConfig: Record<string, { label: string; bg: string; text: string }> 
 export default function DriversList({ onSelectDriver }: DriversListProps) {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
-    const fetchDrivers = async () => {
-      const data = await getDrivers();
-      setDrivers(data || []);
+    const unsubscribe = subscribeToDrivers((data) => {
+      setDrivers(data);
       setLoading(false);
-    };
-    fetchDrivers();
+    });
+    return () => unsubscribe();
   }, []);
 
   const getInitialsColor = (firstName: string) => {
@@ -50,12 +47,6 @@ export default function DriversList({ onSelectDriver }: DriversListProps) {
           </div>
           <h2 className="text-xl font-bold text-opti-blue font-display">Liste des Conducteurs</h2>
         </div>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 bg-opti-blue text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-opti-blue/90 transition-colors cursor-pointer"
-        >
-          <UserPlus className="w-4 h-4" /> Ajouter un conducteur
-        </button>
       </div>
 
       <div className="overflow-x-auto">
@@ -64,12 +55,15 @@ export default function DriversList({ onSelectDriver }: DriversListProps) {
             <tr className="border-b border-gray-100">
               <th className="py-3 px-4 text-xs font-bold text-gray-400 uppercase">Nom / Prénom</th>
               <th className="py-3 px-4 text-xs font-bold text-gray-400 uppercase">Statut</th>
-              <th className="py-3 px-4 text-xs font-bold text-gray-400 uppercase text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {drivers.map((driver) => (
-              <tr key={driver.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+              <tr 
+                key={driver.id} 
+                onClick={() => onSelectDriver(driver)}
+                className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
+              >
                 <td className="py-4 px-4">
                   <div className="flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold ${getInitialsColor(driver.firstName)}`}>
@@ -83,25 +77,11 @@ export default function DriversList({ onSelectDriver }: DriversListProps) {
                     {statusConfig[driver.status]?.label || "ACTIF"}
                   </span>
                 </td>
-                <td className="py-4 px-4 text-right">
-                  <button
-                    onClick={() => onSelectDriver(driver)}
-                    className="p-2 text-gray-400 hover:text-opti-blue hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
-      <DriverEditModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSave={(newDriver) => setDrivers((prev) => [...prev, newDriver])}
-      />
     </div>
   );
 }

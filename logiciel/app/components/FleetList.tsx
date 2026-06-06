@@ -1,3 +1,5 @@
+"use client";
+
 import { MoreVertical, Plus, Eye, Edit2, Trash2, AlertTriangle, X } from "lucide-react";
 import { Vehicle, VehicleType, deleteVehicle } from "@/services/fleet";
 import { UserRole } from "@/app/context/AuthContext";

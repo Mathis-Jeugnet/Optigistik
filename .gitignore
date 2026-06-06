@@ -1,0 +1,9 @@
+# Données OSM (fichiers volumineux, à télécharger manuellement)
+ors/files/*.osm.pbf
+ors/files/*.pbf
+
+# Graphes ORS générés automatiquement au démarrage
+ors/graphs/
+
+# Logs ORS
+ors/logs/

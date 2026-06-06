@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import RoleGuard from "@/app/components/RoleGuard";
 import DashboardLayout from "@/app/components/DashboardLayout";
@@ -21,6 +21,10 @@ type UserData = {
 
 const ROLES = ["Admin", "Gestionnaire", "Lecteur", "Chauffeur"];
 
+const COMMON_LANGUAGES = [
+  "Abkhaze", "Afar", "Afrikaans", "Akan", "Albanais", "Allemand", "Amharique", "Arabe", "Aragonais", "Arménien", "Assamais", "Avar", "Avestique", "Aymara", "Azéri", "Bambara", "Bachkir", "Basque", "Bengali", "Bihari", "Bislama", "Bosniaque", "Breton", "Bulgare", "Birman", "Catalan", "Chamorro", "Tchétchène", "Chichewa", "Chinois", "Tchouvache", "Cornique", "Corse", "Crie", "Croate", "Tchèque", "Danois", "Dhivehi", "Néerlandais", "Dzongkha", "Anglais", "Espéranto", "Estonien", "Ewe", "Féroïen", "Fidjien", "Finnois", "Français", "Frison occidental", "Fula", "Galicien", "Géorgien", "Grec", "Guarani", "Gujarati", "Haïtien", "Haoussa", "Hébreu", "Herero", "Hindi", "Hiri Motu", "Hongrois", "Interlingua", "Indonésien", "Interlingue", "Inuktitut", "Inupiaq", "Irlandais", "Islandais", "Italien", "Japonais", "Javanais", "Kalaallisut", "Kannada", "Kanouri", "Cachemiri", "Kazakh", "Khmer", "Kikuyu", "Kinyarwanda", "Kirghize", "Komi", "Kongo", "Coréen", "Kurde", "Kwanyama", "Lao", "Latin", "Letton", "Limbourgeois", "Lingala", "Lituanien", "Luba-Katanga", "Luxembourgeois", "Macédonien", "Malgache", "Malais", "Malayalam", "Maltais", "Manx", "Maori", "Marathi", "Marshallais", "Mongol", "Nauru", "Navajo", "Ndébélé du Nord", "Ndébélé du Sud", "Ndonga", "Népalais", "Norvégien", "Norvégien Bokmål", "Norvégien Nynorsk", "Occitan", "Ojibwé", "Oriya", "Oromo", "Ossète", "Pali", "Panjabi", "Pashto", "Persan", "Polonais", "Portugais", "Quechua", "Romanche", "Kirundi", "Roumain", "Russe", "Sami du Nord", "Samoan", "Sango", "Sanskrit", "Sarde", "Écossais", "Serbe", "Shona", "Sindhi", "Cinghalais", "Slovaque", "Slovène", "Somali", "Sotho du Sud", "Espagnol", "Soudanais", "Swahili", "Swati", "Suédois", "Tagalog", "Tahitien", "Tadjik", "Tamoul", "Tatar", "Telugu", "Thaï", "Tibétain", "Tigrinya", "Tonga", "Tsonga", "Tswana", "Turc", "Turkmène", "Twi", "Ouïghour", "Ukrainien", "Ourdou", "Ouzbek", "Venda", "Vietnamien", "Volapük", "Wallon", "Gallois", "Wolof", "Xhosa", "Yiddish", "Yoruba", "Zhuang", "Zoulou"
+];
+
 export default function RolesAdminPage() {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +36,15 @@ export default function RolesAdminPage() {
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState("Lecteur");
+  const [driverContractType, setDriverContractType] = useState("GRAND_ROUTIER");
+  const [driverNightWork, setDriverNightWork] = useState(false);
+  const [driverDepot, setDriverDepot] = useState("DEPOT_LYON_01");
+  const [driverLicenseTypes, setDriverLicenseTypes] = useState("");
+  const [driverSeniority, setDriverSeniority] = useState("");
+  const [driverLanguages, setDriverLanguages] = useState("");
+  const [driverEmployeeId, setDriverEmployeeId] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
+  const [driverRole, setDriverRole] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -88,7 +101,18 @@ export default function RolesAdminPage() {
           name: newName,
           email: newEmail,
           password: newPassword,
-          role: newRole
+          role: newRole,
+          driverConfig: newRole === "Chauffeur" ? {
+            contract_type: driverContractType,
+            night_work_authorized: driverNightWork,
+            default_depot_id: driverDepot,
+            license_types: driverLicenseTypes,
+            seniority: driverSeniority,
+            languages: driverLanguages,
+            employee_id: driverEmployeeId,
+            phone: driverPhone,
+            role: driverRole
+          } : undefined
         }),
       });
 
@@ -100,6 +124,15 @@ export default function RolesAdminPage() {
       setNewEmail("");
       setNewPassword("");
       setNewRole("Lecteur");
+      setDriverContractType("GRAND_ROUTIER");
+      setDriverNightWork(false);
+      setDriverDepot("DEPOT_LYON_01");
+      setDriverLicenseTypes("");
+      setDriverSeniority("");
+      setDriverLanguages("");
+      setDriverEmployeeId("");
+      setDriverPhone("");
+      setDriverRole("");
       await fetchUsers();
       alert("Utilisateur créé avec succès !");
     } catch (error: any) {
@@ -138,12 +171,39 @@ export default function RolesAdminPage() {
     }
   };
 
-  const openEditModal = (user: UserData) => {
+  const openEditModal = async (user: UserData) => {
     setUserToEdit(user);
     setEditName(user.name || "");
     setEditEmail(user.email || "");
     setEditRole(user.role || "Lecteur");
     setEditError(null);
+    
+    if (user.role === "Chauffeur") {
+      const driverDoc = await getDoc(doc(db, "drivers", user.uid));
+      if (driverDoc.exists()) {
+        const data = driverDoc.data();
+        setDriverContractType(data.regime || "GRAND_ROUTIER");
+        setDriverNightWork(data.nightWorkAuthorized || false);
+        setDriverDepot(data.defaultDepotId || "DEPOT_LYON_01");
+        setDriverLicenseTypes(data.licenseTypes?.join(", ") || "");
+        setDriverSeniority(data.seniority || "");
+        setDriverLanguages(data.languages?.join(", ") || "");
+        setDriverEmployeeId(data.employeeId || "");
+        setDriverPhone(data.phone || "");
+        setDriverRole(data.role || "");
+      } else {
+        setDriverContractType("GRAND_ROUTIER");
+        setDriverNightWork(false);
+        setDriverDepot("DEPOT_LYON_01");
+        setDriverLicenseTypes("");
+        setDriverSeniority("");
+        setDriverLanguages("");
+        setDriverEmployeeId("");
+        setDriverPhone("");
+        setDriverRole("");
+      }
+    }
+
     setShowEditModal(true);
   };
 
@@ -165,7 +225,18 @@ export default function RolesAdminPage() {
           targetUid: userToEdit.uid,
           name: editName,
           email: editEmail,
-          role: editRole
+          role: editRole,
+          driverConfig: editRole === "Chauffeur" ? {
+            contract_type: driverContractType,
+            night_work_authorized: driverNightWork,
+            default_depot_id: driverDepot,
+            license_types: driverLicenseTypes,
+            seniority: driverSeniority,
+            languages: driverLanguages,
+            employee_id: driverEmployeeId,
+            phone: driverPhone,
+            role: driverRole
+          } : undefined
         }),
       });
 
@@ -326,7 +397,7 @@ export default function RolesAdminPage() {
       {/* MODALE CRÉATION */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div className="bg-red-50 p-3 rounded-2xl"><UserPlus className="w-6 h-6 text-opti-red" /></div>
               <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X className="w-6 h-6 text-gray-400" /></button>
@@ -352,6 +423,97 @@ export default function RolesAdminPage() {
                   {ROLES.map(role => <option key={role} value={role}>{role}</option>)}
                 </select>
               </div>
+
+              {/* Champs spécifiques au Chauffeur */}
+              {newRole === "Chauffeur" && (
+                <div className="bg-slate-50 p-4 rounded-xl space-y-4 border border-slate-100">
+                  <h3 className="text-sm font-bold text-opti-blue flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-opti-red" />
+                    Informations Techniques
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Régime Contractuel</label>
+                      <select 
+                        value={driverContractType} 
+                        onChange={e => setDriverContractType(e.target.value)} 
+                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none bg-white transition-all cursor-pointer"
+                      >
+                        <option value="GRAND_ROUTIER">Grand Routier</option>
+                        <option value="AUTRE_PERSONNEL">Autre Personnel</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Dépôt</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={driverDepot} 
+                        onChange={e => setDriverDepot(e.target.value)} 
+                        placeholder="DEPOT_LYON_01"
+                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Métier / Description</label>
+                      <input type="text" value={driverRole} onChange={e => setDriverRole(e.target.value)} placeholder="ex: Conducteur Poids Lourd" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Téléphone</label>
+                      <input type="text" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} placeholder="0600112233" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">ID Employé</label>
+                      <input type="text" value={driverEmployeeId} onChange={e => setDriverEmployeeId(e.target.value)} placeholder="BHD-HDD-123" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Type de permis</label>
+                      <input type="text" value={driverLicenseTypes} onChange={e => setDriverLicenseTypes(e.target.value)} placeholder="C, CE" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Langues</label>
+                      <select 
+                        value={driverLanguages} 
+                        onChange={e => setDriverLanguages(e.target.value)} 
+                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none bg-white transition-all cursor-pointer"
+                      >
+                        <option value="">Sélectionner une langue</option>
+                        <option value="Français">Français</option>
+                        <option disabled>────────────────────</option>
+                        {COMMON_LANGUAGES.filter(l => l !== "Français").map(lang => (
+                          <option key={lang} value={lang}>{lang}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Date d'embauche (Ancienneté)</label>
+                    <input type="date" value={driverSeniority} onChange={e => setDriverSeniority(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-2">
+                    <input 
+                      type="checkbox" 
+                      id="nightWork"
+                      checked={driverNightWork}
+                      onChange={e => setDriverNightWork(e.target.checked)}
+                      className="w-4 h-4 text-opti-red border-gray-300 rounded focus:ring-opti-red"
+                    />
+                    <label htmlFor="nightWork" className="text-sm font-medium text-slate-700 cursor-pointer">
+                      Autorisation du travail de nuit
+                    </label>
+                  </div>
+                </div>
+              )}
               {createError && <div className="p-4 bg-red-50 rounded-xl border border-red-100 text-opti-red text-xs font-medium">{createError}</div>}
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-3 text-slate-500 font-bold hover:bg-gray-50 rounded-xl transition-colors">Annuler</button>
@@ -380,7 +542,7 @@ export default function RolesAdminPage() {
       {/* MODALE ÉDITION */}
       {showEditModal && userToEdit && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div className="bg-blue-50 p-3 rounded-2xl"><Pencil className="w-6 h-6 text-opti-blue" /></div>
               <button onClick={() => setShowEditModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X className="w-6 h-6 text-gray-400" /></button>
@@ -402,6 +564,97 @@ export default function RolesAdminPage() {
                   {ROLES.map(role => <option key={role} value={role}>{role}</option>)}
                 </select>
               </div>
+
+              {/* Champs spécifiques au Chauffeur (Edition) */}
+              {editRole === "Chauffeur" && (
+                <div className="bg-slate-50 p-4 rounded-xl space-y-4 border border-slate-100">
+                  <h3 className="text-sm font-bold text-opti-blue flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-opti-red" />
+                    Informations Techniques
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Régime Contractuel</label>
+                      <select 
+                        value={driverContractType} 
+                        onChange={e => setDriverContractType(e.target.value)} 
+                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none bg-white transition-all cursor-pointer"
+                      >
+                        <option value="GRAND_ROUTIER">Grand Routier</option>
+                        <option value="AUTRE_PERSONNEL">Autre Personnel</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Dépôt</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={driverDepot} 
+                        onChange={e => setDriverDepot(e.target.value)} 
+                        placeholder="DEPOT_LYON_01"
+                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Métier / Description</label>
+                      <input type="text" value={driverRole} onChange={e => setDriverRole(e.target.value)} placeholder="ex: Conducteur Poids Lourd" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Téléphone</label>
+                      <input type="text" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} placeholder="0600112233" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">ID Employé</label>
+                      <input type="text" value={driverEmployeeId} onChange={e => setDriverEmployeeId(e.target.value)} placeholder="BHD-HDD-123" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Type de permis</label>
+                      <input type="text" value={driverLicenseTypes} onChange={e => setDriverLicenseTypes(e.target.value)} placeholder="C, CE" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Langues</label>
+                      <select 
+                        value={driverLanguages} 
+                        onChange={e => setDriverLanguages(e.target.value)} 
+                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none bg-white transition-all cursor-pointer"
+                      >
+                        <option value="">Sélectionner une langue</option>
+                        <option value="Français">Français</option>
+                        <option disabled>────────────────────</option>
+                        {COMMON_LANGUAGES.filter(l => l !== "Français").map(lang => (
+                          <option key={lang} value={lang}>{lang}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Date d'embauche (Ancienneté)</label>
+                    <input type="date" value={driverSeniority} onChange={e => setDriverSeniority(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-2">
+                    <input 
+                      type="checkbox" 
+                      id="editNightWork"
+                      checked={driverNightWork}
+                      onChange={e => setDriverNightWork(e.target.checked)}
+                      className="w-4 h-4 text-opti-red border-gray-300 rounded focus:ring-opti-red"
+                    />
+                    <label htmlFor="editNightWork" className="text-sm font-medium text-slate-700 cursor-pointer">
+                      Autorisation du travail de nuit
+                    </label>
+                  </div>
+                </div>
+              )}
               {editError && <div className="p-4 bg-red-50 rounded-xl border border-red-100 text-opti-red text-xs font-medium">{editError}</div>}
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setShowEditModal(false)} className="flex-1 px-4 py-3 text-slate-500 font-bold hover:bg-gray-50 rounded-xl transition-colors">Annuler</button>

@@ -6,48 +6,20 @@ import { Driver, DriverRegime } from "@/types";
 import { updateDriver, addDriver } from "@/services/drivers";
 
 interface DriverEditModalProps {
-  driver?: Driver | null;
+  driver: Driver;
   isOpen: boolean;
   onClose: () => void;
   onSave: (saved: Driver) => void;
 }
 
-const emptyForm = {
-  firstName: "",
-  lastName: "",
-  email: "",
-  phone: "",
-  role: "",
-  regime: "AUTRE_PERSONNEL" as DriverRegime,
-  nightWorkAuthorized: false,
-  licenseTypes: "",
-  languages: "",
-  employeeId: "",
-  seniority: "",
-  status: "DISPONIBLE" as const,
-};
-
 export default function DriverEditModal({ driver, isOpen, onClose, onSave }: DriverEditModalProps) {
-  const isCreateMode = !driver;
-
-  const [form, setForm] = useState(() =>
-    driver
-      ? {
-          firstName: driver.firstName,
-          lastName: driver.lastName,
-          email: driver.email,
-          phone: driver.phone,
-          role: driver.role,
-          regime: driver.regime as DriverRegime,
-          nightWorkAuthorized: driver.nightWorkAuthorized,
-          licenseTypes: (driver.licenseTypes || []).join(", "),
-          languages: (driver.languages || []).join(", "),
-          employeeId: driver.employeeId,
-          seniority: driver.seniority,
-          status: driver.status,
-        }
-      : { ...emptyForm },
-  );
+  const [form, setForm] = useState(() => ({
+    phone: driver.phone,
+    licenseTypes: (driver.licenseTypes || []).join(", "),
+    languages: (driver.languages || []).join(", "),
+    seniority: driver.seniority,
+    status: driver.status,
+  }));
   const [saving, setSaving] = useState(false);
 
   if (!isOpen) return null;
@@ -61,40 +33,18 @@ export default function DriverEditModal({ driver, isOpen, onClose, onSave }: Dri
     setSaving(true);
 
     const driverData = {
-      firstName: form.firstName,
-      lastName: form.lastName,
-      email: form.email,
       phone: form.phone,
-      role: form.role,
-      regime: form.regime,
-      nightWorkAuthorized: form.nightWorkAuthorized,
       licenseTypes: form.licenseTypes.split(",").map((s) => s.trim()).filter(Boolean),
       languages: form.languages.split(",").map((s) => s.trim()).filter(Boolean),
-      employeeId: form.employeeId,
       seniority: form.seniority,
+      status: form.status,
     };
 
-    if (isCreateMode) {
-      // Mode création
-      const newDriver = await addDriver({
-        ...driverData,
-        status: form.status,
-        unavailabilities: [],
-        assignedVehicles: [],
-      });
-      setSaving(false);
-      if (newDriver) {
-        onSave(newDriver);
-        onClose();
-      }
-    } else {
-      // Mode édition
-      const success = await updateDriver(driver.id, driverData);
-      setSaving(false);
-      if (success) {
-        onSave({ ...driver, ...driverData });
-        onClose();
-      }
+    const success = await updateDriver(driver.id, driverData);
+    setSaving(false);
+    if (success) {
+      onSave({ ...driver, ...driverData });
+      onClose();
     }
   };
 
@@ -111,7 +61,7 @@ export default function DriverEditModal({ driver, isOpen, onClose, onSave }: Dri
         {/* Header */}
         <div className="sticky top-0 bg-white rounded-t-3xl border-b border-gray-100 px-8 py-5 flex items-center justify-between z-10">
           <h2 className="text-xl font-bold text-opti-blue font-display">
-            {isCreateMode ? "Ajouter un conducteur" : "Modifier le profil"}
+            Modifier le profil (Données de contact et Statut)
           </h2>
           <button
             onClick={onClose}
@@ -123,51 +73,12 @@ export default function DriverEditModal({ driver, isOpen, onClose, onSave }: Dri
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Identité */}
+          {/* Contact & Statut */}
           <fieldset>
             <legend className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-              Identité
+              Contact & Statut
             </legend>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-semibold text-opti-blue mb-1">Prénom</label>
-                <input
-                  type="text"
-                  value={form.firstName}
-                  onChange={(e) => handleChange("firstName", e.target.value)}
-                  required
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-opti-blue mb-1">Nom</label>
-                <input
-                  type="text"
-                  value={form.lastName}
-                  onChange={(e) => handleChange("lastName", e.target.value)}
-                  required
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
-                />
-              </div>
-            </div>
-          </fieldset>
-
-          {/* Contact */}
-          <fieldset>
-            <legend className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-              Contact
-            </legend>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-semibold text-opti-blue mb-1">Email</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => handleChange("email", e.target.value)}
-                  required
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
-                />
-              </div>
               <div>
                 <label className="block text-sm font-semibold text-opti-blue mb-1">Téléphone</label>
                 <input
@@ -177,53 +88,19 @@ export default function DriverEditModal({ driver, isOpen, onClose, onSave }: Dri
                   className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
                 />
               </div>
-            </div>
-          </fieldset>
-
-          {/* Poste + Profil Contractuel */}
-          <fieldset>
-            <legend className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-              Poste & Profil Contractuel
-            </legend>
-            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-sm font-semibold text-opti-blue mb-1">Rôle</label>
-                <input
-                  type="text"
-                  value={form.role}
-                  onChange={(e) => handleChange("role", e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-opti-blue mb-1">
-                  Régime
+                <label className="block text-sm font-semibold text-opti-blue mb-1.5">
+                  Statut actuel
                 </label>
                 <select
-                  value={form.regime}
-                  onChange={(e) => handleChange("regime", e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white"
+                  value={form.status}
+                  onChange={(e) => handleChange("status", e.target.value as any)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white"
                 >
-                  <option value="GRAND_ROUTIER">Grand Routier</option>
-                  <option value="AUTRE_PERSONNEL">Autre personnel</option>
+                  <option value="DISPONIBLE">Disponible</option>
+                  <option value="EN_MISSION">En mission</option>
+                  <option value="INDISPONIBLE">Indisponible</option>
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-opti-blue mb-1">
-                  Travail de nuit
-                </label>
-                <label className="relative inline-flex items-center cursor-pointer mt-1">
-                  <input
-                    type="checkbox"
-                    checked={form.nightWorkAuthorized}
-                    onChange={(e) => handleChange("nightWorkAuthorized", e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-opti-red peer-focus:ring-2 peer-focus:ring-opti-red/20 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-                  <span className="ml-3 text-sm text-gray-600">
-                    {form.nightWorkAuthorized ? "Autorisé" : "Non autorisé"}
-                  </span>
-                </label>
               </div>
             </div>
           </fieldset>
@@ -261,42 +138,7 @@ export default function DriverEditModal({ driver, isOpen, onClose, onSave }: Dri
             </div>
           </fieldset>
 
-          {/* ID Employé (création uniquement) */}
-          {isCreateMode && (
-            <fieldset>
-              <legend className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">
-                Référence
-              </legend>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-opti-blue mb-1.5">
-                    ID Employé
-                  </label>
-                  <input
-                    type="text"
-                    value={form.employeeId}
-                    onChange={(e) => handleChange("employeeId", e.target.value)}
-                    placeholder="EMP-FR-XXXX"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-opti-blue mb-1.5">
-                    Statut initial
-                  </label>
-                  <select
-                    value={form.status}
-                    onChange={(e) => handleChange("status", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white"
-                  >
-                    <option value="DISPONIBLE">Disponible</option>
-                    <option value="EN_MISSION">En mission</option>
-                    <option value="INDISPONIBLE">Indisponible</option>
-                  </select>
-                </div>
-              </div>
-            </fieldset>
-          )}
+
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
@@ -312,11 +154,7 @@ export default function DriverEditModal({ driver, isOpen, onClose, onSave }: Dri
               disabled={saving}
               className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-opti-red hover:bg-opti-red-dark transition-colors disabled:opacity-50 cursor-pointer"
             >
-              {saving
-                ? "Enregistrement..."
-                : isCreateMode
-                  ? "Ajouter le conducteur"
-                  : "Enregistrer"}
+              {saving ? "Enregistrement..." : "Enregistrer"}
             </button>
           </div>
         </form>

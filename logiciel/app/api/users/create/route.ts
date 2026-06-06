@@ -5,10 +5,16 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password, role } = await request.json();
+    const { name, email, password, role, driverConfig } = await request.json();
 
     if (!name || !email || !password || !role) {
       return NextResponse.json({ error: 'Tous les champs sont requis (nom, email, password, role)' }, { status: 400 });
+    }
+
+    if (role === 'Chauffeur') {
+      if (!driverConfig || !driverConfig.contract_type || typeof driverConfig.night_work_authorized !== 'boolean' || !driverConfig.default_depot_id) {
+        return NextResponse.json({ error: 'Paramètres de conformité RSE manquants pour la création d\'un conducteur.' }, { status: 400 });
+      }
     }
 
     // 1. Vérification de l'autorisation (Seul un Admin peut créer)
@@ -40,7 +46,7 @@ export async function POST(request: Request) {
     // 3. Attribution du rôle (Custom Claims)
     await adminAuth.setCustomUserClaims(userRecord.uid, { role });
 
-    // 4. Création du profil dans Firestore
+    // 4. Création du profil dans Firestore (users)
     await adminDb.collection('users').doc(userRecord.uid).set({
       name,
       email,
@@ -48,6 +54,31 @@ export async function POST(request: Request) {
       createdAt: new Date(),
       uid: userRecord.uid
     });
+
+    // 5. Si Chauffeur, création de l'entité Driver
+    if (role === 'Chauffeur') {
+      const nameParts = name.trim().split(' ');
+      const lastName = nameParts.length > 1 ? nameParts.pop() : name;
+      const firstName = nameParts.join(' ');
+
+      await adminDb.collection('drivers').doc(userRecord.uid).set({
+        firstName: firstName || "",
+        lastName: lastName || "",
+        email,
+        phone: driverConfig.phone || "",
+        regime: driverConfig.contract_type,
+        nightWorkAuthorized: driverConfig.night_work_authorized,
+        defaultDepotId: driverConfig.default_depot_id,
+        status: "DISPONIBLE",
+        role: driverConfig.role || "Conducteur",
+        licenseTypes: driverConfig.license_types ? driverConfig.license_types.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+        employeeId: driverConfig.employee_id || userRecord.uid,
+        seniority: driverConfig.seniority || new Date().toISOString(),
+        languages: driverConfig.languages ? driverConfig.languages.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+        unavailabilities: [],
+        assignedVehicles: []
+      });
+    }
 
     return NextResponse.json({ 
       success: true, 

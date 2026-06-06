@@ -6,8 +6,8 @@ import {
   CalendarPlus, Save, Trash2, ChevronRight, Shield, Clock,
 } from "lucide-react";
 import { Driver, DriverUnavailability } from "@/types";
-import { updateDriver, deleteDriver } from "@/services/drivers";
-import DriverEditModal from "./DriverEditModal";
+import { updateDriver } from "@/services/drivers";
+import { useAuth } from "../context/AuthContext";
 
 interface DriverDetailProps {
   driver: Driver;
@@ -29,9 +29,7 @@ const unavailabilityTypeConfig: Record<string, { label: string; color: string; b
 };
 
 export default function DriverDetail({ driver, onUpdate, onBack }: DriverDetailProps) {
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [showUnavailForm, setShowUnavailForm] = useState(false);
   const [unavailForm, setUnavailForm] = useState({
     type: "CONGES_ANNUELS" as DriverUnavailability["type"],
@@ -40,28 +38,108 @@ export default function DriverDetail({ driver, onUpdate, onBack }: DriverDetailP
     note: "",
   });
   const [savingUnavail, setSavingUnavail] = useState(false);
+  const [editingUnavailId, setEditingUnavailId] = useState<string | null>(null);
+  const { profile } = useAuth();
+  const isAdmin = (profile?.role as string) === "admin" || (profile?.role as string) === "Admin";
 
   const status = statusConfig[driver.status] || statusConfig.DISPONIBLE;
 
   const handleAddUnavailability = async () => {
-    if (!unavailForm.startDate || !unavailForm.endDate) return;
-    setSavingUnavail(true);
-    const newUnavail: DriverUnavailability = {
-      id: `u-${Date.now()}`,
-      type: unavailForm.type,
-      label: unavailForm.type,
-      startDate: unavailForm.startDate,
-      endDate: unavailForm.endDate,
-      note: unavailForm.note || undefined,
-    };
-    const updated = [...(driver.unavailabilities || []), newUnavail];
-    const success = await updateDriver(driver.id, { unavailabilities: updated });
-    setSavingUnavail(false);
-    if (success) {
-      onUpdate({ ...driver, unavailabilities: updated });
-      setShowUnavailForm(false);
-      setUnavailForm({ type: "CONGES_ANNUELS", startDate: "", endDate: "", note: "" });
+    if (!isAdmin) {
+      alert("Seuls les administrateurs peuvent modifier les indisponibilités.");
+      return;
     }
+    if (!unavailForm.startDate || !unavailForm.endDate) {
+      alert("Veuillez renseigner une date de début et une date de fin.");
+      return;
+    }
+
+    try {
+      setSavingUnavail(true);
+      const currentUnavailabilities = Array.isArray(driver.unavailabilities) ? driver.unavailabilities : [];
+      let updated;
+
+      if (editingUnavailId) {
+        // Mode Edition
+        updated = currentUnavailabilities.map(u => {
+          if (u.id === editingUnavailId) {
+            const updatedItem: DriverUnavailability = {
+              ...u,
+              type: unavailForm.type,
+              label: unavailabilityTypeConfig[unavailForm.type]?.label || unavailForm.type,
+              startDate: unavailForm.startDate,
+              endDate: unavailForm.endDate,
+            };
+            if (unavailForm.note.trim()) {
+              updatedItem.note = unavailForm.note.trim();
+            } else {
+              delete updatedItem.note;
+            }
+            return updatedItem;
+          }
+          return u;
+        });
+      } else {
+        // Mode Création
+        const newUnavail: DriverUnavailability = {
+          id: `u-${Date.now()}`,
+          type: unavailForm.type,
+          label: unavailabilityTypeConfig[unavailForm.type]?.label || unavailForm.type,
+          startDate: unavailForm.startDate,
+          endDate: unavailForm.endDate,
+        };
+        if (unavailForm.note.trim()) {
+          newUnavail.note = unavailForm.note.trim();
+        }
+        
+        updated = [...currentUnavailabilities, newUnavail];
+      }
+      
+      const success = await updateDriver(driver.id, { unavailabilities: updated });
+      
+      if (success) {
+        onUpdate({ ...driver, unavailabilities: updated });
+        setShowUnavailForm(false);
+        setEditingUnavailId(null);
+        setUnavailForm({ type: "CONGES_ANNUELS", startDate: "", endDate: "", note: "" });
+        alert(editingUnavailId ? "Indisponibilité modifiée avec succès." : "Indisponibilité ajoutée avec succès.");
+      } else {
+        alert("Erreur lors de la mise à jour sur le serveur.");
+      }
+    } catch (err) {
+      console.error("Erreur handleAddUnavailability:", err);
+      alert("Une erreur est survenue.");
+    } finally {
+      setSavingUnavail(false);
+    }
+  };
+
+  const handleDeleteUnavailability = async (unavailId: string) => {
+    if (!isAdmin) return;
+    if (!confirm("Supprimer cette période d'indisponibilité ?")) return;
+    
+    try {
+      const updated = (driver.unavailabilities || []).filter(u => u.id !== unavailId);
+      const success = await updateDriver(driver.id, { unavailabilities: updated });
+      if (success) {
+        onUpdate({ ...driver, unavailabilities: updated });
+      } else {
+        alert("Erreur lors de la suppression.");
+      }
+    } catch (err) {
+      alert("Une erreur est survenue lors de la suppression.");
+    }
+  };
+
+  const startEditingUnavail = (u: DriverUnavailability) => {
+    setEditingUnavailId(u.id);
+    setUnavailForm({
+      type: u.type,
+      startDate: u.startDate,
+      endDate: u.endDate,
+      note: u.note || "",
+    });
+    setShowUnavailForm(true);
   };
 
   const getInitials = () => {
@@ -88,12 +166,6 @@ export default function DriverDetail({ driver, onUpdate, onBack }: DriverDetailP
                 <div className="w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center text-opti-blue text-2xl font-bold font-display">
                   {getInitials()}
                 </div>
-                <button 
-                  onClick={() => setIsEditModalOpen(true)}
-                  className="absolute -bottom-1 -right-1 w-7 h-7 bg-opti-red rounded-full flex items-center justify-center text-white shadow-md hover:bg-opti-red-dark transition-colors cursor-pointer"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
               </div>
 
               <div>
@@ -122,12 +194,6 @@ export default function DriverDetail({ driver, onUpdate, onBack }: DriverDetailP
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                className="flex items-center gap-2 bg-opti-red text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-opti-red-dark transition-colors cursor-pointer"
-              >
-                Modifier le profil
-              </button>
             </div>
           </div>
         </div>
@@ -160,7 +226,16 @@ export default function DriverDetail({ driver, onUpdate, onBack }: DriverDetailP
                 </div>
                 <div>
                   <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Ancienneté</p>
-                  <p className="text-sm font-semibold text-opti-blue">{driver.seniority}</p>
+                  <p className="text-sm font-semibold text-opti-blue">
+                    {(() => {
+                      if (!driver.seniority || !driver.seniority.includes('-')) return driver.seniority;
+                      const hireDate = new Date(driver.seniority);
+                      if (isNaN(hireDate.getTime())) return driver.seniority;
+                      const diffTime = Math.abs(new Date().getTime() - hireDate.getTime());
+                      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                      return `${hireDate.toLocaleDateString('fr-FR')} (${diffDays} jours)`;
+                    })()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Langues</p>
@@ -217,13 +292,24 @@ export default function DriverDetail({ driver, onUpdate, onBack }: DriverDetailP
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-lg font-bold text-opti-blue font-display">Indisponibilité</h2>
-                <button onClick={() => setShowUnavailForm(!showUnavailForm)} className="flex items-center gap-1.5 text-sm text-opti-blue hover:text-opti-red font-semibold cursor-pointer">
-                  <CalendarPlus className="w-4 h-4" />
-                  {showUnavailForm ? "Annuler" : "Ajouter"}
-                </button>
+                {isAdmin && (
+                  <button 
+                    onClick={() => {
+                      setShowUnavailForm(!showUnavailForm);
+                      if (showUnavailForm) {
+                        setEditingUnavailId(null);
+                        setUnavailForm({ type: "CONGES_ANNUELS", startDate: "", endDate: "", note: "" });
+                      }
+                    }} 
+                    className="flex items-center gap-1.5 text-sm text-opti-blue hover:text-opti-red font-semibold cursor-pointer"
+                  >
+                    <CalendarPlus className="w-4 h-4" />
+                    {showUnavailForm ? "Annuler" : "Ajouter"}
+                  </button>
+                )}
               </div>
 
-              {showUnavailForm && (
+              {isAdmin && showUnavailForm && (
                 <div className="mb-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-3">
                   <select
                     value={unavailForm.type}
@@ -241,56 +327,42 @@ export default function DriverDetail({ driver, onUpdate, onBack }: DriverDetailP
                   </div>
                   <input type="text" value={unavailForm.note} onChange={(e) => setUnavailForm({ ...unavailForm, note: e.target.value })} placeholder="Note (optionnel)" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-opti-blue" />
                   <button onClick={handleAddUnavailability} disabled={savingUnavail} className="w-full py-2 bg-opti-red text-white rounded-xl text-sm font-semibold disabled:opacity-50">
-                    {savingUnavail ? "Enregistrement..." : "Ajouter la période"}
+                    {savingUnavail ? "Enregistrement..." : (editingUnavailId ? "Modifier la période" : "Ajouter la période")}
                   </button>
                 </div>
               )}
 
               <div className="space-y-3">
-                {(driver.unavailabilities || []).map((u) => {
+                 {(driver.unavailabilities || []).map((u) => {
                   const config = unavailabilityTypeConfig[u.type] || unavailabilityTypeConfig.AUTRE;
                   return (
-                    <div key={u.id} className={`p-4 rounded-2xl border border-gray-100 ${config.bg}`}>
-                      <p className={`text-[11px] font-bold uppercase tracking-wider mb-1 ${config.color}`}>{config.label}</p>
-                      <p className="text-sm font-bold text-opti-blue">
-                        {new Date(u.startDate).toLocaleDateString("fr-FR")} – {new Date(u.endDate).toLocaleDateString("fr-FR")}
-                      </p>
+                    <div key={u.id} className={`p-4 rounded-2xl border border-gray-100 ${config.bg} flex justify-between items-start group`}>
+                      <div>
+                        <p className={`text-[11px] font-bold uppercase tracking-wider mb-1 ${config.color}`}>{config.label}</p>
+                        <p className="text-sm font-bold text-opti-blue">
+                          {new Date(u.startDate).toLocaleDateString("fr-FR")} – {new Date(u.endDate).toLocaleDateString("fr-FR")}
+                        </p>
+                        {u.note && <p className="text-xs text-gray-500 mt-1 italic">{u.note}</p>}
+                      </div>
+                      {isAdmin && (
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => startEditingUnavail(u)} className="p-1.5 text-gray-400 hover:text-opti-blue bg-white rounded-lg shadow-sm border border-gray-100 transition-colors">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteUnavailability(u.id)} className="p-1.5 text-gray-400 hover:text-opti-red bg-white rounded-lg shadow-sm border border-gray-100 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            <button
-              onClick={async () => {
-                setSaving(true);
-                await updateDriver(driver.id, driver);
-                setSaving(false);
-              }}
-              disabled={saving}
-              className="w-full flex items-center justify-center gap-2 bg-opti-red text-white px-5 py-3 rounded-xl text-sm font-semibold hover:bg-opti-red-dark transition-colors cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              {saving ? "Enregistrement..." : "Enregistrer les modifications"}
-            </button>
-            <button
-              onClick={async () => {
-                if (!confirm(`Confirmer la suppression ?`)) return;
-                setDeleting(true);
-                if (await deleteDriver(driver.id)) onBack();
-                setDeleting(false);
-              }}
-              disabled={deleting}
-              className="w-full flex items-center justify-center gap-2 text-opti-red hover:text-opti-red-dark text-sm font-semibold cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4" />
-              Supprimer le compte
-            </button>
           </div>
         </div>
       </div>
-
-      <DriverEditModal driver={driver} isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} onSave={onUpdate} />
     </>
   );
 }

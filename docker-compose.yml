@@ -5,6 +5,8 @@ services:
     ports:
       - "3000:3000"
     restart: always
+    networks:
+      - optigistik
 
   logiciel:
     build: ./logiciel
@@ -12,3 +14,41 @@ services:
     ports:
       - "3001:3000"
     restart: always
+    environment:
+      # En Docker, ORS est accessible via le nom du service sur le réseau interne
+      ORS_BASE_URL: http://ors:8082/ors/v2
+      # ORS_API_KEY inutile en self-hosted
+    depends_on:
+      - ors
+    networks:
+      - optigistik
+
+  solveur:
+    build: ./solveur
+    container_name: solveur
+    ports:
+      - "8000:8000"
+    restart: always
+
+  ors:
+    image: openrouteservice/openrouteservice:latest
+    container_name: ors
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./ors/config:/home/ors/config
+      - ./ors/files:/home/ors/files
+      - ./ors/graphs:/home/ors/graphs
+      - ./ors/logs:/home/ors/logs
+    environment:
+      ORS_CONFIG_LOCATION: /home/ors/config/ors-config.yml
+      JAVA_OPTS: -Xms2g -Xmx8g
+      _JAVA_OPTIONS: -Xmx8g
+    mem_limit: 10g
+    restart: always
+    networks:
+      - optigistik
+
+networks:
+  optigistik:
+    driver: bridge

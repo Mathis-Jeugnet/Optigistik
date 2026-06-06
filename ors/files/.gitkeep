@@ -1,0 +1,3 @@
+# Placer ici le fichier .osm.pbf téléchargé depuis https://download.geofabrik.de
+# Exemple : france-latest.osm.pbf
+# Ce fichier est ignoré par git (voir .gitignore)

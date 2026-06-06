@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const { targetUid, name, email, role } = await request.json();
+    const { targetUid, name, email, role, driverConfig } = await request.json();
 
     if (!targetUid || !name || !email || !role) {
       return NextResponse.json({ error: 'Tous les champs sont requis (uid, name, email, role)' }, { status: 400 });
@@ -53,6 +53,31 @@ export async function POST(request: Request) {
       email,
       role,
     });
+
+    // 6. Si Chauffeur, mise à jour de l'entité Driver
+    if (role === 'Chauffeur' && driverConfig) {
+      const nameParts = name.trim().split(' ');
+      const lastName = nameParts.length > 1 ? nameParts.pop() : name;
+      const firstName = nameParts.join(' ');
+
+      const driverData: any = {
+        firstName: firstName || "",
+        lastName: lastName || "",
+        email,
+        role: driverConfig.role || "Conducteur",
+      };
+
+      if (driverConfig.contract_type) driverData.regime = driverConfig.contract_type;
+      if (typeof driverConfig.night_work_authorized === 'boolean') driverData.nightWorkAuthorized = driverConfig.night_work_authorized;
+      if (driverConfig.default_depot_id) driverData.defaultDepotId = driverConfig.default_depot_id;
+      if (driverConfig.phone !== undefined) driverData.phone = driverConfig.phone;
+      if (driverConfig.license_types !== undefined) driverData.licenseTypes = driverConfig.license_types.split(",").map((s: string) => s.trim()).filter(Boolean);
+      if (driverConfig.employee_id !== undefined) driverData.employeeId = driverConfig.employee_id;
+      if (driverConfig.seniority !== undefined) driverData.seniority = driverConfig.seniority;
+      if (driverConfig.languages !== undefined) driverData.languages = driverConfig.languages.split(",").map((s: string) => s.trim()).filter(Boolean);
+
+      await adminDb.collection('drivers').doc(targetUid).set(driverData, { merge: true });
+    }
 
     return NextResponse.json({ 
       success: true, 

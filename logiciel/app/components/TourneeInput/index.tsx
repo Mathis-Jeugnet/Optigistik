@@ -6,7 +6,7 @@ import { useDeliveryStore } from '@/stores/deliveryStore'
 import PivotPointsForm from './PivotPointsForm'
 import ImportPanel from './ImportPanel'
 import DeliveryTable from './DeliveryTable'
-import PayloadPreview from './PayloadPreview'
+import GenerateTourneeButton from './GenerateTourneeButton'
 
 export default function TourneeInput() {
   const { save, isSaving } = useDeliverySession()
@@ -80,7 +80,7 @@ export default function TourneeInput() {
               {isSaving ? 'Sauvegarde…' : isDirty ? 'Sauvegarder' : 'Sauvegardé'}
             </span>
           </button>
-          <PayloadPreview />
+          <GenerateTourneeButton />
         </div>
       </div>
 
