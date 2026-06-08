@@ -314,7 +314,7 @@ export default function ClientConfig({
                               {editable && (
                                 <button
                                   onClick={() => removeSlot(day, index)}
-                                  className="text-gray-300 hover:text-opti-red transition-colors"
+                                  className="text-gray-400 hover:text-opti-red transition-colors"
                                   aria-label="Supprimer le créneau"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
