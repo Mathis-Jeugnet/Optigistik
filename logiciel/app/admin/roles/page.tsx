@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import RoleGuard from "@/app/components/RoleGuard";
+import AccessDenied from "@/app/components/AccessDenied";
 import DashboardLayout from "@/app/components/DashboardLayout";
+import { ROLES } from "@/app/context/AuthContext";
 import Link from "next/link";
 import { 
   ArrowLeft, Plus, X, UserPlus, ShieldCheck, Info,
@@ -19,8 +21,6 @@ type UserData = {
   createdAt: any;
   mustChangePassword?: boolean;
 };
-
-const ROLES = ["Admin", "Gestionnaire", "Lecteur", "Chauffeur"];
 
 const COMMON_LANGUAGES = [
   "Abkhaze", "Afar", "Afrikaans", "Akan", "Albanais", "Allemand", "Amharique", "Arabe", "Aragonais", "Arménien", "Assamais", "Avar", "Avestique", "Aymara", "Azéri", "Bambara", "Bachkir", "Basque", "Bengali", "Bihari", "Bislama", "Bosniaque", "Breton", "Bulgare", "Birman", "Catalan", "Chamorro", "Tchétchène", "Chichewa", "Chinois", "Tchouvache", "Cornique", "Corse", "Crie", "Croate", "Tchèque", "Danois", "Dhivehi", "Néerlandais", "Dzongkha", "Anglais", "Espéranto", "Estonien", "Ewe", "Féroïen", "Fidjien", "Finnois", "Français", "Frison occidental", "Fula", "Galicien", "Géorgien", "Grec", "Guarani", "Gujarati", "Haïtien", "Haoussa", "Hébreu", "Herero", "Hindi", "Hiri Motu", "Hongrois", "Interlingua", "Indonésien", "Interlingue", "Inuktitut", "Inupiaq", "Irlandais", "Islandais", "Italien", "Japonais", "Javanais", "Kalaallisut", "Kannada", "Kanouri", "Cachemiri", "Kazakh", "Khmer", "Kikuyu", "Kinyarwanda", "Kirghize", "Komi", "Kongo", "Coréen", "Kurde", "Kwanyama", "Lao", "Latin", "Letton", "Limbourgeois", "Lingala", "Lituanien", "Luba-Katanga", "Luxembourgeois", "Macédonien", "Malgache", "Malais", "Malayalam", "Maltais", "Manx", "Maori", "Marathi", "Marshallais", "Mongol", "Nauru", "Navajo", "Ndébélé du Nord", "Ndébélé du Sud", "Ndonga", "Népalais", "Norvégien", "Norvégien Bokmål", "Norvégien Nynorsk", "Occitan", "Ojibwé", "Oriya", "Oromo", "Ossète", "Pali", "Panjabi", "Pashto", "Persan", "Polonais", "Portugais", "Quechua", "Romanche", "Kirundi", "Roumain", "Russe", "Sami du Nord", "Samoan", "Sango", "Sanskrit", "Sarde", "Écossais", "Serbe", "Shona", "Sindhi", "Cinghalais", "Slovaque", "Slovène", "Somali", "Sotho du Sud", "Espagnol", "Soudanais", "Swahili", "Swati", "Suédois", "Tagalog", "Tahitien", "Tadjik", "Tamoul", "Tatar", "Telugu", "Thaï", "Tibétain", "Tigrinya", "Tonga", "Tsonga", "Tswana", "Turc", "Turkmène", "Twi", "Ouïghour", "Ukrainien", "Ourdou", "Ouzbek", "Venda", "Vietnamien", "Volapük", "Wallon", "Gallois", "Wolof", "Xhosa", "Yiddish", "Yoruba", "Zhuang", "Zoulou"
@@ -271,27 +271,10 @@ export default function RolesAdminPage() {
   };
 
   return (
-    <RoleGuard 
-      allowedRoles={["Admin"]} 
+    <RoleGuard
+      allowedRoles={["Admin"]}
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-          <div className="bg-white border border-slate-200 p-10 rounded-[32px] shadow-xl text-center max-w-md animate-in fade-in zoom-in duration-300">
-            <div className="bg-red-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-              <ShieldCheck className="w-10 h-10 text-opti-red" />
-            </div>
-            <h2 className="text-2xl font-bold text-opti-blue mb-3">Accès Privilégié</h2>
-            <p className="text-slate-500 mb-8 leading-relaxed">
-              Désolé, cette zone est réservée aux administrateurs du système Optigistik.
-            </p>
-            <Link 
-              href="/" 
-              className="inline-flex items-center gap-2 px-8 py-3 bg-opti-blue text-white font-bold rounded-xl hover:bg-slate-800 transition-all shadow-lg active:scale-95"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Retour au tableau de bord
-            </Link>
-          </div>
-        </div>
+        <AccessDenied message="Désolé, cette zone est réservée aux administrateurs du système Optigistik." />
       }
     >
       <DashboardLayout>

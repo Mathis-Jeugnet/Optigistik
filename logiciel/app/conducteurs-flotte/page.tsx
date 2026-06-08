@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import DashboardLayout from "../components/DashboardLayout";
+import RoleGuard from "../components/RoleGuard";
 import DriversList from "../components/DriversList";
 import DriverDetail from "../components/DriverDetail";
 import { Driver } from "@/types";
@@ -19,7 +20,7 @@ export default function ConducteursFlottePage() {
   const [listKey, setListKey] = useState(0);
   const pathname = usePathname(); // Hook pour gérer les onglets
 
-  const userRole = profile?.role || 'membre';
+  const userRole = profile?.role || 'Lecteur';
 
   const handleSelectDriver = (driver: Driver) => {
     setSelectedDriver(driver);
@@ -34,8 +35,9 @@ export default function ConducteursFlottePage() {
 
   return (
     <DashboardLayout>
+      <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur"]}>
       <div className="w-full space-y-6">
-        
+
         {/* Navigation Tabs Dynamiques (Reliées à /fleet) */}
         {view === "list" && (
           <div className="mb-6 flex gap-8 border-b border-gray-200">
@@ -68,7 +70,7 @@ export default function ConducteursFlottePage() {
           <div className="flex h-[400px] items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-opti-blue"></div>
           </div>
-        ) : userRole === 'membre' ? (
+        ) : userRole?.toLowerCase() === 'lecteur' ? (
           <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-gray-100 shadow-sm animate-in fade-in duration-500">
             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
               <ShieldAlert className="w-10 h-10 text-opti-red" />
@@ -94,6 +96,7 @@ export default function ConducteursFlottePage() {
           </div>
         )}
       </div>
+      </RoleGuard>
     </DashboardLayout>
   );
 }

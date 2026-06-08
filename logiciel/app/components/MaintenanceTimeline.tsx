@@ -1,7 +1,7 @@
 "use client";
 
 import { MaintenanceLog } from "@/services/fleet";
-import { UserRole } from "@/app/context/AuthContext";
+import { UserRole, canEdit } from "@/app/context/AuthContext";
 import { Wrench, AlertTriangle, CheckCircle2, AlertCircle, MessageSquare, Clock, Edit2, Trash2 } from "lucide-react";
 
 interface MaintenanceTimelineProps {
@@ -57,9 +57,9 @@ export default function MaintenanceTimeline({ logs, onEdit, onDelete, userRole }
                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${getColorClass(log.type)}`}>
                   {log.type}
                 </span>
-                {userRole !== 'membre' && (
+                {canEdit(userRole) && (
                   <div className="flex items-center gap-2">
-                    <button 
+                    <button
                       onClick={() => onEdit(log)}
                       className="text-gray-400 hover:text-blue-600 transition-colors"
                       title="Modifier cet événement"
