@@ -13,6 +13,8 @@ export interface DeliveryPoint {
     end: string
   }
   notes?: string
+  allowed_vehicle_types?: string[] | null;
+  required_skills?: string[] | null;
 }
 
 export interface SessionMeta {
@@ -29,6 +31,10 @@ export interface DeliverySession {
   end_node: PivotNode
   createdAt: Date
   updatedAt: Date
+  optimization_signature?: string;
+  affretement_report?: Array<{client_id: string, raison_rejet: string}>;
+  unlocated_points?: string[];
+  clusters?: any[];
 }
 
 export interface ORToolsPayload {
