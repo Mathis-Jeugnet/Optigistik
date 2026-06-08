@@ -1,13 +1,23 @@
 import logging
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware # 1. Import nécessaire
 from models import OptimizationRequest
 from solver import VRPOptimizer
 
-# Configuration des logs pour suivre l'exécution dans la console de l'API
+# Configuration des logs
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Optigistik Solveur API", version="3.0")
+
+# 2. Configuration CORS : Autorise votre front-end à communiquer avec cette API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3001"], # URL de votre interface Next.js
+    allow_credentials=True,
+    allow_methods=["*"], # Autorise tous les verbes HTTP (POST, OPTIONS, etc.)
+    allow_headers=["*"], # Autorise tous les headers
+)
 
 @app.post("/api/optimize")
 def optimize_route(request: OptimizationRequest):

@@ -1,5 +1,7 @@
 'use client'
 
+import { getAllVehicles } from '@/services/fleet'
+import { getBusyVehicleIdsForDate } from '@/services/firestoreSession'
 import { useState } from 'react'
 import { useDeliveryStore } from '@/stores/deliveryStore'
 import { geocodeAddress } from '@/services/geocoding'
@@ -7,7 +9,9 @@ import { generateClusters, ClusterNode, ClusteringResult } from '@/services/clus
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { Check, Copy, X, Loader2, MapPin, Group, AlertCircle, Send, Code, Grid3X3 } from 'lucide-react'
+import { buildSolverPayload, timeToSeconds } from '@/utils/solverMapper'
 import { generateAndSaveDistanceMatrix, MatrixPoint, DistanceMatrixResult } from '@/services/distanceMatrix'
+import { saveVehicleTrips } from '@/services/planning'
 
 function secondsToHHmm(s: number): string {
   const hours = Math.floor(s / 3600);
@@ -107,18 +111,87 @@ export default function GenerateTourneeButton() {
     setUnlocated(failed)
     setIsProcessing(false)
 
-    // 7. Calcul de la matrice en arrière-plan (non bloquant pour l'UI)
+    // 7. Calcul de la matrice et appel au Solveur
     if (matrixPoints.length >= 2) {
       setMatrixStatus('computing')
       generateAndSaveDistanceMatrix(session.id, matrixPoints)
-        .then((res) => {
+        .then(async (res) => {
           setMatrixResult(res)
           setMatrixStatus('done')
+          
+          try {
+            const allVehicles = await getAllVehicles();
+            
+            // Calcul du créneau global de la tournée (pour le filtre anti-conflit)
+            // On prend le min et max des fenêtres horaires des points
+            const startTimes = session.delivery_points.map(p => timeToSeconds(p.time_window.start));
+            const endTimes = session.delivery_points.map(p => timeToSeconds(p.time_window.end));
+            
+            const minStart = new Date(session.meta.date); minStart.setSeconds(Math.min(...startTimes) - 18000); // -5h
+            const maxEnd = new Date(session.meta.date); maxEnd.setSeconds(Math.max(...endTimes) + 18000); // +5h
+
+            const trulyAvailableVehicles = allVehicles.filter(v => {
+              if (!v.is_active) return false;
+              
+              // 1. Vérif CT (avec conversion Firebase Timestamp sécurisée)
+              const inspectionDate = (v.inspection_date as any).toDate ? (v.inspection_date as any).toDate() : new Date(v.inspection_date);
+              if (inspectionDate <= new Date(session.meta.date)) return false;
+
+              // 2. Vérif Planning (La nouvelle logique métier)
+              // Note: Vous devrez implémenter cette fonction dans votre service 'planning'
+              // isVehicleBusy(v.id, minStart, maxEnd) 
+              
+              return true; 
+            });
+
+            const solverPayload = buildSolverPayload(session, res, trulyAvailableVehicles);
+            
+            const solverResponse = await fetch("http://localhost:8000/api/optimize", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(solverPayload)
+            });
+            
+            if (!solverResponse.ok) throw new Error(`Erreur ${solverResponse.status}`);
+                        
+            // AFFICHER LE RÉSULTAT DANS L'UI
+            // 1. Sauvegarder dans Firebase
+            const optimizationResult = await solverResponse.json();
+
+            if (optimizationResult.status === "success" || optimizationResult.status === "partial_success") {
+              try {
+                // A. Enregistrement dans 'vehicle_trips' pour le planning réel
+                // Ici, vous mappez les routes du solveur vers des créneaux horaires
+                const trips = optimizationResult.vehicles.map((v: any) => ({
+                  vehicle_id: v.vehicle_id,
+                  session_id: session.id,
+                  start_time: new Date(new Date(session.meta.date).setSeconds(v.route[0].arrival_time)),
+                  end_time: new Date(new Date(session.meta.date).setSeconds(v.route[v.route.length-1].arrival_time)),
+                  status: 'PLANNED'
+                }));
+                await saveVehicleTrips(trips); // Votre fonction du service planning
+
+                // B. Mise à jour de la session pour historique
+                await updateDoc(doc(db, 'delivery_sessions', session.id), {
+                  status: "VALIDATED",
+                  optimized_routes: optimizationResult.vehicles,
+                  summary: optimizationResult.summary,
+                  updatedAt: new Date()
+                });
+                
+                alert("Tournée validée et planning des camions mis à jour avec succès !");
+              } catch (e) {
+                console.error("Erreur sauvegarde Firebase:", e);
+                alert("Optimisation réussie mais erreur lors de la sauvegarde.");
+              }
+            }
+
+          } catch (err) {
+            console.error(err);
+            alert("Erreur lors de l'optimisation.");
+          }
         })
-        .catch((err) => {
-          console.error('Erreur matrice (non bloquant):', err)
-          setMatrixStatus('error')
-        })
+        .catch((err) => { console.error(err); setMatrixStatus('error'); })
     }
   }
 

@@ -158,10 +158,11 @@ export const useDeliveryStore = create<DeliveryState>()(
           meta: session.meta,
           origin_node: { address: session.origin_node.address },
           delivery_points: points.map((p) => ({
+            id: p.id,
             address: p.address,
             pallets: p.pallets,
-            loading_time_at_depot: p.loading_time_at_depot,
-            unloading_time_at_client: p.unloading_time_at_client,
+            loading_time: p.loading_time_at_depot * 60,
+            unloading_time: p.unloading_time_at_client * 60,
             time_window: p.time_window,
           })),
           end_node: { address: session.end_node.address },

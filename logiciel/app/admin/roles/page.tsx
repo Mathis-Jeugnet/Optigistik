@@ -7,8 +7,8 @@ import RoleGuard from "@/app/components/RoleGuard";
 import DashboardLayout from "@/app/components/DashboardLayout";
 import Link from "next/link";
 import { 
-  ArrowLeft, Plus, X, UserPlus, ShieldCheck, 
-  Users, Truck, Trash2, Pencil, Check, AlertCircle 
+  ArrowLeft, Plus, X, UserPlus, ShieldCheck, Info,
+  Users, Truck, Trash2, Pencil, Check, AlertCircle, CheckCircle, ShieldAlert
 } from "lucide-react";
 
 type UserData = {
@@ -31,12 +31,6 @@ export default function RolesAdminPage() {
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => {
-      setNotification(null);
-    }, 4000);
-  };
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // États pour la création d'utilisateur
