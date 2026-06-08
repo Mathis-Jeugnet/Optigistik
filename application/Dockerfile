@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # On installe les dépendances (expo, react, react-native, etc.)
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # On copie le reste des fichiers du projet
 COPY . .
