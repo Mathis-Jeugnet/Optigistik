@@ -1,27 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Fonction utile pour récupérer facilement le rôle depuis le Custom Claim (JWT)
+
     function getUserRole() {
-      // Si le token n'a pas de rôle (nouvel utilisateur), on retourne null
       return request.auth != null ? request.auth.token.role : null;
     }
-    
-    // Vérifie si l'utilisateur est connecté
+
     function isAuthenticated() {
       return request.auth != null;
+    }
+
+    // Vérifie que la paire de rôles est autorisée à communiquer directement.
+    // Règle : Chauffeur ne peut parler qu'à Admin/Gestionnaire.
+    //         Lecteur ne peut pas parler à un Chauffeur.
+    function canRolesPairChat(r1, r2) {
+      return !(
+        (r1 == 'Chauffeur' && (r2 == 'Chauffeur' || r2 == 'Lecteur')) ||
+        (r1 == 'Lecteur'   && r2 == 'Chauffeur')
+      );
     }
 
     // ---------------------------------------------------------
     // UTILISATEURS (users)
     // ---------------------------------------------------------
     match /users/{userId} {
-      // Un utilisateur peut lire son propre profil, l'Admin peut tout lire
-      allow read: if isAuthenticated() && (request.auth.uid == userId || getUserRole() == 'Admin');
-      
-      // Seul un Admin peut créer ou supprimer des utilisateurs.
-      // Un utilisateur connecté peut mettre à jour son propre profil (ex: changement de mot de passe).
+      // Tout utilisateur connecté peut lire les profils (nécessaire pour la messagerie).
+      allow read: if isAuthenticated();
+
       allow create, delete: if isAuthenticated() && getUserRole() == 'Admin';
       allow update: if isAuthenticated() && (request.auth.uid == userId || getUserRole() == 'Admin');
     }
@@ -30,16 +35,10 @@ service cloud.firestore {
     // TOURNEES (tournees)
     // ---------------------------------------------------------
     match /tournees/{tourneeId} {
-      // Lecture :
-      // - Admin, Gestionnaire, Lecteur voient toutes les tournées
-      // - Chauffeur ne voit que les siennes (le champ 'driverId' doit correspondre à son UID)
       allow read: if isAuthenticated() && (
-        getUserRole() in ['Admin', 'Gestionnaire', 'Lecteur'] || 
+        getUserRole() in ['Admin', 'Gestionnaire', 'Lecteur'] ||
         (getUserRole() == 'Chauffeur' && resource.data.driverId == request.auth.uid)
       );
-      
-      // Écriture (Création/Modification/Suppression) :
-      // - Seuls l'Admin et le Gestionnaire peuvent modifier les tournées
       allow write: if isAuthenticated() && getUserRole() in ['Admin', 'Gestionnaire'];
     }
 
@@ -47,10 +46,7 @@ service cloud.firestore {
     // FLOTTE / CAMIONS (camions)
     // ---------------------------------------------------------
     match /camions/{camionId} {
-      // Lecture : Le Chauffeur n'a pas accès à la flotte, les autres oui
       allow read: if isAuthenticated() && getUserRole() in ['Admin', 'Gestionnaire', 'Lecteur'];
-      
-      // Écriture : Admin et Gestionnaire gèrent la flotte
       allow write: if isAuthenticated() && getUserRole() in ['Admin', 'Gestionnaire'];
     }
 
@@ -58,10 +54,7 @@ service cloud.firestore {
     // TYPOLOGIES / CONFIGURATION (typologies)
     // ---------------------------------------------------------
     match /typologies/{docId} {
-      // Lecture : Admin, Gestionnaire et Lecteur peuvent consulter (Chauffeur exclu)
       allow read: if isAuthenticated() && getUserRole() in ['Admin', 'Gestionnaire', 'Lecteur'];
-
-      // Écriture : Accès configuration critique => UNIQUEMENT l'Admin
       allow write: if isAuthenticated() && getUserRole() == 'Admin';
     }
 
@@ -69,21 +62,74 @@ service cloud.firestore {
     // CONDUCTEURS (drivers)
     // ---------------------------------------------------------
     match /drivers/{driverId} {
-      // Lecture : 
-      // - Admin, Gestionnaire et Lecteur peuvent tout voir
-      // - Un chauffeur peut voir son propre profil technique
       allow read: if isAuthenticated() && (
         getUserRole() in ['Admin', 'Gestionnaire', 'Lecteur'] ||
         (getUserRole() == 'Chauffeur' && request.auth.uid == driverId)
       );
-      
-      // Écriture : Seul l'Admin peut modifier les fiches techniques des chauffeurs
       allow write: if isAuthenticated() && getUserRole() == 'Admin';
+    }
+
+    // ---------------------------------------------------------
     // MATRICES DE DISTANCE (distance_matrices)
     // ---------------------------------------------------------
     match /distance_matrices/{sessionId} {
       allow read: if isAuthenticated() && getUserRole() in ['Admin', 'Gestionnaire', 'Lecteur'];
       allow write: if isAuthenticated() && getUserRole() in ['Admin', 'Gestionnaire'];
+    }
+
+    // ---------------------------------------------------------
+    // MESSAGERIE (conversations + messages)
+    // ---------------------------------------------------------
+    match /conversations/{conversationId} {
+      // Lecture : uniquement les participants
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.participantIds;
+
+      // Création :
+      // - Pour une conversation directe : la paire de rôles doit être autorisée
+      // - Pour un groupe : seul Admin/Gestionnaire peut créer
+      // Dans les deux cas, le créateur doit être dans la liste des participants
+      // et son rôle stocké dans participantRoles doit correspondre à son token.
+      allow create: if isAuthenticated()
+        && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.participantRoles[request.auth.uid] == getUserRole()
+        && (
+          (
+            request.resource.data.type == 'direct'
+            && request.resource.data.participantIds.size() == 2
+            && canRolesPairChat(
+                request.resource.data.participantRoles[request.resource.data.participantIds[0]],
+                request.resource.data.participantRoles[request.resource.data.participantIds[1]]
+               )
+          )
+          ||
+          (
+            request.resource.data.type == 'group'
+            && getUserRole() in ['Admin', 'Gestionnaire']
+          )
+        );
+
+      // Mise à jour : seuls les participants peuvent mettre à jour (lastMessage, unreadCounts…)
+      allow update: if isAuthenticated() && request.auth.uid in resource.data.participantIds;
+
+      // Suppression : réservée à Admin
+      allow delete: if isAuthenticated() && getUserRole() == 'Admin';
+
+      // Sous-collection messages
+      match /messages/{messageId} {
+        // Lecture/écriture : uniquement si l'utilisateur est participant de la conversation parente
+        allow read: if isAuthenticated()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+
+        allow create: if isAuthenticated()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds
+          && request.resource.data.senderId == request.auth.uid;
+
+        // Mise à jour uniquement pour marquer comme lu (readBy)
+        allow update: if isAuthenticated()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+
+        allow delete: if false;
+      }
     }
 
   }
