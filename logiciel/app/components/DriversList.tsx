@@ -38,6 +38,17 @@ export default function DriversList({ onSelectDriver }: DriversListProps) {
     </div>
   );
 
+  if (drivers.length === 0) {
+    return (
+      <div className="bg-white rounded-3xl p-12 shadow-sm border border-gray-100 text-center">
+        <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
+          <Users className="w-8 h-8 text-slate-400" />
+        </div>
+        <p className="text-slate-500 font-semibold text-sm">Aucun conducteur enregistré. Ajoutez-en un pour commencer.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
       <div className="flex items-center justify-between mb-6">

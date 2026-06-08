@@ -1,9 +1,10 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, User as FirebaseUser, signOut } from "firebase/auth"; // Ajout de signOut
-import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged, User as FirebaseUser, signOut } from "firebase/auth";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import ChangePasswordModal from "@/app/components/ChangePasswordModal";
 
 export type UserRole = 'Admin' | 'Gestionnaire' | 'Lecteur' | 'Chauffeur';
 
@@ -23,20 +24,21 @@ export interface UserProfile {
   email: string;
   role: UserRole;
   createdAt: any;
+  mustChangePassword?: boolean;
 }
 
 interface AuthContextType {
   user: FirebaseUser | null;
   profile: UserProfile | null;
   loading: boolean;
-  logout: () => Promise<void>; // Ajout de la définition du type
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
-  logout: async () => {}, // Valeur par défaut
+  logout: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -50,6 +52,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await signOut(auth);
     } catch (error) {
       console.error("Erreur lors de la déconnexion:", error);
+    }
+  };
+
+  const handlePasswordChanged = () => {
+    if (profile) {
+      setProfile({
+        ...profile,
+        mustChangePassword: false,
+      });
     }
   };
 
@@ -83,7 +94,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, logout }}>
-      {children}
+      {profile?.mustChangePassword ? (
+        <ChangePasswordModal 
+          profile={profile} 
+          onPasswordChanged={handlePasswordChanged} 
+          onLogout={logout} 
+        />
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 };

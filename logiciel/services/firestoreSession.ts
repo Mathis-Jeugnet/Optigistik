@@ -4,6 +4,32 @@ import type { DeliverySession } from '@/types/logistics'
 
 const COLLECTION = 'delivery_sessions'
 
+export async function getBusyVehicleIdsForDate(dateStr: string, currentSessionId: string): Promise<string[]> {
+  try {
+    const q = query(
+      collection(db, COLLECTION),
+      where("meta.date", "==", dateStr),
+      where("status", "==", "VALIDATED") // Assumons que les tournées verrouillées ont ce statut
+    );
+    const snapshot = await getDocs(q);
+    const busyIds = new Set<string>();
+    
+    snapshot.forEach(doc => {
+      if (doc.id !== currentSessionId) {
+        const data = doc.data();
+        // On suppose que lorsqu'une tournée est validée, on stocke les IDs des camions utilisés
+        if (Array.isArray(data.vehicles_used)) {
+          data.vehicles_used.forEach((id: string) => busyIds.add(id));
+        }
+      }
+    });
+    return Array.from(busyIds);
+  } catch (e) {
+    console.error("Erreur getBusyVehicleIdsForDate:", e);
+    return [];
+  }
+}
+
 export async function saveSession(session: DeliverySession): Promise<void> {
   const uid = auth.currentUser?.uid
   if (!uid) throw new Error('Utilisateur non connecté')

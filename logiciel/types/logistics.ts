@@ -35,10 +35,11 @@ export interface ORToolsPayload {
   meta: SessionMeta
   origin_node: { address: string }
   delivery_points: Array<{
+    id: string
     address: string
     pallets: number
-    loading_time_at_depot: number
-    unloading_time_at_client: number
+    loading_time: number
+    unloading_time: number
     time_window: { start: string; end: string }
   }>
   end_node: { address: string }

@@ -55,3 +55,8 @@ h6 {
 .animate-in {
   animation: animate-in 0.2s ease-out;
 }
+
+.numbered-icon {
+  background: transparent !important;
+  border: none !important;
+}
