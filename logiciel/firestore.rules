@@ -66,6 +66,17 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------
+    // CLIENTS (clients)
+    // ---------------------------------------------------------
+    match /clients/{clientId} {
+      // Lecture : Admin, Gestionnaire et Lecteur (Chauffeur exclu)
+      allow read: if isAuthenticated() && getUserRole() in ['Admin', 'Gestionnaire', 'Lecteur'];
+
+      // Écriture : Admin et Gestionnaire gèrent les clients et leurs contraintes
+      allow write: if isAuthenticated() && getUserRole() in ['Admin', 'Gestionnaire'];
+    }
+
+    // ---------------------------------------------------------
     // CONDUCTEURS (drivers)
     // ---------------------------------------------------------
     match /drivers/{driverId} {

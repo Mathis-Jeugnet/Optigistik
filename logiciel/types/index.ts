@@ -110,3 +110,56 @@ export interface Driver {
   unavailabilities: DriverUnavailability[];
   assignedVehicles: AssignedVehicle[];
 }
+
+// 6. Les Clients
+export type Weekday =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+export const WEEKDAYS: Weekday[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
+
+// Créneau horaire d'accès, ex. { start: "08:00", end: "12:00" }
+export interface TimeSlot {
+  start: string;
+  end: string;
+}
+
+// Fenêtre de livraison pour un jour donné
+export interface DeliveryWindow {
+  open: boolean; // false => "Fermé"
+  slots: TimeSlot[]; // 0..n créneaux
+}
+
+// Contraintes logistiques et fenêtres d'accès d'un client
+export interface ClientConstraints {
+  deliveryWindows: Record<Weekday, DeliveryWindow>;
+  allowedVehicleTypes: string[]; // ids de docs vehicle_types autorisés
+  requiredEquipment: string[]; // noms/ids issus de specialties
+  instructions: string; // notes pour le conducteur
+  updatedAt?: string; // ISO, pour "Dernière mise à jour le…"
+}
+
+export interface Client {
+  id: string;
+  name: string; // contact, ex. "Jean Morel"
+  role: string; // ex. "CEO", "Responsable logistique"
+  company: string; // ex. "TransLogis"
+  email: string;
+  address: string;
+  avatarUrl?: string;
+  subscriptionActive: boolean; // badge Actif / Inactif
+  constraints: ClientConstraints;
+}
