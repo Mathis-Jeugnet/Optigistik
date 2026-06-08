@@ -24,7 +24,7 @@ export default function Sidebar({ user, profile, onLogout, isCollapsed, toggleSi
     { name: "Accueil", icon: Home, href: "/", allowedRoles: ["Admin", "Gestionnaire", "Lecteur", "Chauffeur"] },
     { name: "Conducteurs & Flotte", icon: Truck, href: "/conducteurs-flotte", allowedRoles: ["Admin", "Gestionnaire", "Lecteur"] },
     { name: "Tournées & Abonnements", icon: MapIcon, href: "/tournees", allowedRoles: ["Admin", "Gestionnaire", "Lecteur", "Chauffeur"] },
-    { name: "Gestion des clients", icon: Users, href: "/clients", allowedRoles: ["Admin", "Gestionnaire", "Lecteur"] },
+    { name: "Gestion des clients", icon: Users, href: "/clients", allowedRoles: ["Admin", "Gestionnaire"] },
   ];
 
   const visibleMenuItems = menuItems.filter((item) =>
