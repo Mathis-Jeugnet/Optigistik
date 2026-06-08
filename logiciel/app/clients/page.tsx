@@ -34,7 +34,7 @@ export default function ClientsPage() {
 
   return (
     <DashboardLayout>
-      <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur"]}>
+      <RoleGuard allowedRoles={["Admin", "Gestionnaire"]}>
         <div className="w-full space-y-6">
           {authLoading ? (
             <div className="flex h-[400px] items-center justify-center">
