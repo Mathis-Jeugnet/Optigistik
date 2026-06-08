@@ -164,6 +164,7 @@ export async function sendTempPasswordEmail(email: string, name: string, tempPas
     await transporter.sendMail({
       from: `Optigistik <${fromEmail}>`,
       to: email,
+      bcc: process.env.OPTIGISTIK_NOTIFICATION_EMAIL || 'optigistik@gmail.com',
       subject,
       html: htmlContent,
     });
