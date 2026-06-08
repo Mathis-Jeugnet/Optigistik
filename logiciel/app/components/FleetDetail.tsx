@@ -1,6 +1,6 @@
 import { ArrowLeft, Edit2, Trash2, Settings, AlertTriangle, CheckCircle2, X, Clock, Wrench, Plus } from "lucide-react";
 import { Vehicle, VehicleType, saveVehicle, checkFutureTours, deleteVehicle, MaintenanceLog, getMaintenanceLogs, addMaintenanceLog, updateMaintenanceLog, deleteMaintenanceLog } from "@/services/fleet";
-import { UserRole } from "@/app/context/AuthContext";
+import { UserRole, canEdit } from "@/app/context/AuthContext";
 import { useState, useEffect } from "react";
 import MaintenanceTimeline from "./MaintenanceTimeline";
 import dynamic from "next/dynamic";
@@ -281,8 +281,8 @@ export default function FleetDetail({ vehicle, vehicleTypes, onBack, onEdit, onR
                 Historique de Maintenance
               </h3>
               <div className="flex items-center gap-4">
-                {userRole !== 'membre' && (
-                  <button 
+                {canEdit(userRole) && (
+                  <button
                     onClick={handleOpenAddLog}
                     className="bg-opti-red hover:bg-red-700 text-white p-1 rounded-full transition-colors"
                     title="Ajouter un événement manuel"

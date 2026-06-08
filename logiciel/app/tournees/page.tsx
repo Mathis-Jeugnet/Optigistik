@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import AppShell from '@/app/components/AppShell'
+import RoleGuard from '@/app/components/RoleGuard'
 import { listSessions, deleteSession } from '@/services/firestoreSession'
 import { useDeliveryStore } from '@/stores/deliveryStore'
 import type { DeliverySession } from '@/types/logistics'
@@ -83,6 +84,7 @@ export default function TourneesPage() {
 
   return (
     <AppShell>
+      <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur", "Chauffeur"]}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -224,6 +226,7 @@ export default function TourneesPage() {
           </div>
         )}
       </div>
+      </RoleGuard>
     </AppShell>
   )
 }

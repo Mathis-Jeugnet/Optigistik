@@ -2,11 +2,13 @@
 
 import Link from 'next/link'
 import AppShell from '@/app/components/AppShell'
+import RoleGuard from '@/app/components/RoleGuard'
 import TourneeInput from '@/app/components/TourneeInput'
 
 export default function TourneeSaisiePage() {
   return (
     <AppShell>
+      <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur", "Chauffeur"]}>
       <div className="space-y-4 max-w-7xl mx-auto">
         <Link
           href="/tournees"
@@ -19,6 +21,7 @@ export default function TourneeSaisiePage() {
         </Link>
         <TourneeInput />
       </div>
+      </RoleGuard>
     </AppShell>
   )
 }

@@ -6,6 +6,7 @@ import { Driver } from "@/types";
 import { getDriverById } from "@/services/drivers";
 import DriverDetail from "../../components/DriverDetail";
 import DashboardLayout from "../../components/DashboardLayout";
+import RoleGuard from "../../components/RoleGuard";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -44,11 +45,13 @@ export default function DriverDetailPage({ params }: PageProps) {
 
   return (
     <DashboardLayout>
-      <DriverDetail 
-        driver={driver} 
-        onUpdate={setDriver} 
-        onBack={() => router.push("/conducteurs-flotte")} 
-      />
+      <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur"]}>
+        <DriverDetail
+          driver={driver}
+          onUpdate={setDriver}
+          onBack={() => router.push("/conducteurs-flotte")}
+        />
+      </RoleGuard>
     </DashboardLayout>
   );
 }

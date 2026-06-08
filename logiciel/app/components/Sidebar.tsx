@@ -17,13 +17,19 @@ interface SidebarProps {
 
 export default function Sidebar({ user, profile, onLogout, isCollapsed, toggleSidebar }: SidebarProps) {
   const pathname = usePathname();
+  const userRole = profile?.role;
 
+  // `allowedRoles` aligne la nav sur la matrice de permissions (cf. firestore.rules / RoleGuard).
   const menuItems = [
-    { name: "Accueil", icon: Home, href: "/" },
-    { name: "Conducteurs & Flotte", icon: Truck, href: "/conducteurs-flotte" },
-    { name: "Tournées & Abonnements", icon: MapIcon, href: "/tournees" },
-    { name: "Gestion des clients", icon: Users, href: "/clients" },
+    { name: "Accueil", icon: Home, href: "/", allowedRoles: ["Admin", "Gestionnaire", "Lecteur", "Chauffeur"] },
+    { name: "Conducteurs & Flotte", icon: Truck, href: "/conducteurs-flotte", allowedRoles: ["Admin", "Gestionnaire", "Lecteur"] },
+    { name: "Tournées & Abonnements", icon: MapIcon, href: "/tournees", allowedRoles: ["Admin", "Gestionnaire", "Lecteur", "Chauffeur"] },
+    { name: "Gestion des clients", icon: Users, href: "/clients", allowedRoles: ["Admin", "Gestionnaire", "Lecteur"] },
   ];
+
+  const visibleMenuItems = menuItems.filter((item) =>
+    item.allowedRoles.some((role) => role.toLowerCase() === userRole?.toLowerCase())
+  );
 
   return (
     <aside
@@ -41,7 +47,7 @@ export default function Sidebar({ user, profile, onLogout, isCollapsed, toggleSi
       </div>
 
       <nav className="flex-1 space-y-4">
-        {menuItems.map((item) => {
+        {visibleMenuItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
@@ -59,8 +65,8 @@ export default function Sidebar({ user, profile, onLogout, isCollapsed, toggleSi
           );
         })}
 
-        {/* Utilisation de "Admin" ou "admin", le nouveau RoleGuard s'en occupe */}
-        <RoleGuard allowedRoles={["Admin"]}>
+        {/* Lien réservé à l'Admin. fallback={null} pour masquer silencieusement (pas d'écran AccessDenied dans la nav). */}
+        <RoleGuard allowedRoles={["Admin"]} fallback={null}>
           <Link
             href="/admin/roles"
             className={`w-full flex items-center gap-4 py-3 px-4 rounded-l-full transition-all group relative ${
@@ -88,7 +94,7 @@ export default function Sidebar({ user, profile, onLogout, isCollapsed, toggleSi
                   {profile?.name || user?.email?.split('@')[0] || "Utilisateur"}
                 </p>
                 <p className="text-[10px] text-gray-400 font-bold uppercase">
-                  {profile?.role || "Membre"}
+                  {profile?.role || "Lecteur"}
                 </p>
               </div>
               <button

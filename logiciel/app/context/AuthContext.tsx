@@ -2,10 +2,20 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User as FirebaseUser, signOut } from "firebase/auth"; // Ajout de signOut
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
-export type UserRole = 'admin' | 'gestionnaire' | 'membre';
+export type UserRole = 'Admin' | 'Gestionnaire' | 'Lecteur' | 'Chauffeur';
+
+// Source de vérité unique des rôles assignables (cf. /admin/roles et /api/users/create).
+export const ROLES: UserRole[] = ['Admin', 'Gestionnaire', 'Lecteur', 'Chauffeur'];
+
+// Édition (créer / modifier / supprimer) réservée à Admin et Gestionnaire.
+// Comparaison insensible à la casse pour gérer d'éventuels anciens comptes en minuscules.
+export const canEdit = (role?: string | null): boolean => {
+  const r = role?.toLowerCase();
+  return r === 'admin' || r === 'gestionnaire';
+};
 
 export interface UserProfile {
   uid: string;
@@ -48,20 +58,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(currentUser);
       if (currentUser) {
         try {
+          // Les documents users sont créés avec l'UID comme ID (cf. /api/users/create),
+          // donc une lecture directe par ID suffit toujours.
           const docRef = doc(db, "users", currentUser.uid);
-          let docSnap = await getDoc(docRef);
-          
+          const docSnap = await getDoc(docRef);
+
           if (docSnap.exists()) {
             setProfile({ uid: currentUser.uid, ...docSnap.data() } as UserProfile);
           } else {
-            const q = query(collection(db, "users"), where("uid", "==", currentUser.uid));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-              const userDoc = querySnapshot.docs[0];
-              setProfile({ uid: currentUser.uid, ...userDoc.data() } as UserProfile);
-            } else {
-              setProfile(null);
-            }
+            setProfile(null);
           }
         } catch (error) {
           console.error("Erreur profil:", error);

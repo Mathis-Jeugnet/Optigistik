@@ -2,14 +2,17 @@
 
 import { ReactNode } from "react";
 import { useAuth } from "@/app/context/AuthContext";
+import AccessDenied from "./AccessDenied";
 
 interface RoleGuardProps {
   allowedRoles: string[];
   children: ReactNode;
+  // Par défaut, on affiche l'écran <AccessDenied />. Passer `null` pour masquer
+  // silencieusement (ex : un lien de menu réservé à certains rôles).
   fallback?: ReactNode;
 }
 
-export default function RoleGuard({ allowedRoles, children, fallback = null }: RoleGuardProps) {
+export default function RoleGuard({ allowedRoles, children, fallback }: RoleGuardProps) {
   const { profile, loading } = useAuth();
 
   if (loading) return null;
@@ -22,7 +25,7 @@ export default function RoleGuard({ allowedRoles, children, fallback = null }: R
   );
 
   if (!isAuthorized) {
-    return <>{fallback}</>;
+    return <>{fallback === undefined ? <AccessDenied /> : fallback}</>;
   }
 
   return <>{children}</>;
