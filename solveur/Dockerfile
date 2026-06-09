@@ -2,6 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Installation de ffmpeg et flac pour le traitement audio
+RUN apt-get update && apt-get install -y ffmpeg flac && rm -rf /var/lib/apt/lists/*
+
 # Copie des fichiers de dépendances et installation
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
