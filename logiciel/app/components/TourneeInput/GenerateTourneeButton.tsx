@@ -274,9 +274,12 @@ export default function GenerateTourneeButton() {
                   uid: `end-${index}`
                 };
               } else if (stop.stop_type === 'BREAK') {
+                // On vérifie si la pause est due à l'attente d'un créneau ou à la fatigue
+                const isWaitBreak = stop.client_id === 'PAUSE_ATTENTE';
+                
                 return {
                   step_type: 'BREAK',
-                  address: 'Pause Réglementaire (RSE)',
+                  address: isWaitBreak ? 'Pause optimisée (Attente ouverture client)' : 'Pause Réglementaire (RSE)',
                   arrival_time: stop.arrival_time,
                   action_duration: 45,
                   uid: `break-${index}`
