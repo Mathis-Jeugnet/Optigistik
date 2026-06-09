@@ -87,15 +87,15 @@ export function buildSolverPayload(
   const endDepotIndex = isSymmetric ? 0 : nodes.length - 1;
 
   // 3. Mapping de la Flotte
+  const startTimeSeconds = timeToSeconds(session.meta.start_time || "08:00");
+
   const mappedVehicles = vehiclesToDispatch.map((v) => ({
     id: v.id,
-    capacity: v.capacity_palettes,
-    max_service_time: 43200, 
-    // On passe le vrai type du camion pour le matching physique
-    vehicle_type: v.typeId || "STANDARD", 
+    capacity: Number(v.capacity_palettes) || 33, 
+    max_service_time: startTimeSeconds + 43200, 
+    vehicle_type: v.typeId || "STANDARD",
     start_node_idx: 0,
-    end_node_idx: endDepotIndex,
-    // On passe les vraies compétences du camion
+    end_node_idx: isSymmetric ? 0 : nodes.length - 1,
     skills: v.specialty ? [v.specialty] : []
   }));
 
