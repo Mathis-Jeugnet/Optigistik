@@ -1,22 +1,60 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator } from 'react-native';
+import { getApiUrl, fetchWithRetry } from '../../utils/api';
 
-export default function NewPasswordScreen({ navigation }: any) {
+export default function NewPasswordScreen({ route, navigation }: any) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCreatePassword = () => {
-    if (password && password === confirmPassword) {
-      // In a real app, you would send this to the backend
-      // and update the app state to 'Main'
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
+  const { email } = route.params || {};
+
+  const handleCreatePassword = async () => {
+    if (password.length < 8) {
+      setError('Le mot de passe doit faire au moins 8 caractères.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Les mots de passe ne correspondent pas.');
+      return;
+    }
+    if (!email) return;
+
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const apiUrl = getApiUrl();
+      const { response, data } = await fetchWithRetry(`${apiUrl}/api/auth/complete-setup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true'
+        },
+        body: JSON.stringify({
+          email: email.toLowerCase(),
+          newPassword: password,
+        }),
       });
+
+      if (response.ok && data.success) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' }],
+        });
+      } else {
+        setError(data.error || 'Erreur lors de la configuration du mot de passe.');
+      }
+    } catch (err) {
+      console.error('New password complete error:', err);
+      setError('Impossible de se connecter au serveur.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const isFormValid = password.length >= 6 && password === confirmPassword;
+  const isFormValid = password.length >= 8 && password === confirmPassword;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -26,7 +64,7 @@ export default function NewPasswordScreen({ navigation }: any) {
       >
         <View style={styles.header}>
           <Text style={styles.title}>Nouveau mot de passe</Text>
-          <Text style={styles.subtitle}>Pour sécuriser votre compte, veuillez créer un nouveau mot de passe.</Text>
+          <Text style={styles.subtitle}>Pour sécuriser votre compte, veuillez créer un nouveau mot de passe (min. 8 caractères).</Text>
         </View>
 
         <View style={styles.form}>
@@ -34,11 +72,12 @@ export default function NewPasswordScreen({ navigation }: any) {
             <Text style={styles.label}>Nouveau mot de passe</Text>
             <TextInput
               style={styles.input}
-              placeholder="Min. 6 caractères"
+              placeholder="Min. 8 caractères"
               placeholderTextColor="#9ca3af"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              editable={!loading}
             />
           </View>
 
@@ -54,18 +93,27 @@ export default function NewPasswordScreen({ navigation }: any) {
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
+              editable={!loading}
             />
             {confirmPassword.length > 0 && password !== confirmPassword && (
               <Text style={styles.errorText}>Les mots de passe ne correspondent pas.</Text>
             )}
           </View>
 
+          {error && (
+            <Text style={styles.generalErrorText}>{error}</Text>
+          )}
+
           <TouchableOpacity 
-            style={[styles.button, !isFormValid && styles.buttonDisabled]} 
+            style={[styles.button, (!isFormValid || loading) && styles.buttonDisabled]} 
             onPress={handleCreatePassword}
-            disabled={!isFormValid}
+            disabled={!isFormValid || loading}
           >
-            <Text style={styles.buttonText}>Terminer la configuration</Text>
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.buttonText}>Terminer la configuration</Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -150,5 +198,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  generalErrorText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
   },
 });

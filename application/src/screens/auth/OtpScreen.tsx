@@ -1,13 +1,43 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator } from 'react-native';
+import { getApiUrl, fetchWithRetry } from '../../utils/api';
 
-export default function OtpScreen({ navigation }: any) {
+export default function OtpScreen({ route, navigation }: any) {
   const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleVerify = () => {
-    // In a real app, you'd verify the OTP via API
-    if (otp.length === 6) {
-      navigation.navigate('NewPassword');
+  const { email } = route.params || {};
+
+  const handleVerify = async () => {
+    if (otp.length !== 6 || !email) return;
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const apiUrl = getApiUrl();
+      const { response, data } = await fetchWithRetry(`${apiUrl}/api/auth/otp/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true'
+        },
+        body: JSON.stringify({
+          email: email.toLowerCase(),
+          otpCode: otp,
+        }),
+      });
+
+      if (response.ok && data.success) {
+        navigation.navigate('NewPassword', { email: email.toLowerCase() });
+      } else {
+        setError(data.error || 'Code OTP incorrect ou expiré.');
+      }
+    } catch (err) {
+      console.error('OTP verify error:', err);
+      setError('Impossible de se connecter au serveur.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -19,7 +49,7 @@ export default function OtpScreen({ navigation }: any) {
       >
         <View style={styles.header}>
           <Text style={styles.title}>Vérification OTP</Text>
-          <Text style={styles.subtitle}>Saisissez le code à 6 chiffres qui vous a été envoyé.</Text>
+          <Text style={styles.subtitle}>Saisissez le code à 6 chiffres qui vous a été envoyé à l'adresse {email}.</Text>
         </View>
 
         <View style={styles.form}>
@@ -33,15 +63,24 @@ export default function OtpScreen({ navigation }: any) {
               keyboardType="number-pad"
               maxLength={6}
               textAlign="center"
+              editable={!loading}
             />
           </View>
 
+          {error && (
+            <Text style={styles.errorText}>{error}</Text>
+          )}
+
           <TouchableOpacity 
-            style={[styles.button, otp.length !== 6 && styles.buttonDisabled]} 
+            style={[styles.button, (otp.length !== 6 || loading) && styles.buttonDisabled]} 
             onPress={handleVerify}
-            disabled={otp.length !== 6}
+            disabled={otp.length !== 6 || loading}
           >
-            <Text style={styles.buttonText}>Vérifier le code</Text>
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.buttonText}>Vérifier le code</Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -112,5 +151,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
   },
 });
