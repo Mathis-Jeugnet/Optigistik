@@ -27,3 +27,6 @@ env/
 # React Native / Expo
 ios/
 android/
+
+# Backup/scratch directory
+Untitled/

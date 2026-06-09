@@ -1,14 +1,50 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator } from 'react-native';
+import { getApiUrl, fetchWithRetry } from '../../utils/api';
 
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
   const [tempPassword, setTempPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = () => {
-    // In a real app, you would validate credentials here
-    if (email && tempPassword) {
-      navigation.navigate('Otp');
+  const handleLogin = async () => {
+    if (!email || !tempPassword) return;
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const apiUrl = getApiUrl();
+      const { response, data } = await fetchWithRetry(`${apiUrl}/api/auth/otp/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true'
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          tempPassword: tempPassword.trim(),
+        }),
+      });
+
+      if (response.ok && data.success) {
+        if (data.requiresOtp) {
+          navigation.navigate('Otp', { email: email.trim().toLowerCase() });
+        } else {
+          // Connexion directe pour les comptes déjà activés
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Main' }],
+          });
+        }
+      } else {
+        setError(data.error || 'Identifiants invalides ou serveur indisponible.');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Impossible de se connecter au serveur. Vérifiez votre connexion.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -34,6 +70,7 @@ export default function LoginScreen({ navigation }: any) {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              editable={!loading}
             />
           </View>
 
@@ -46,15 +83,24 @@ export default function LoginScreen({ navigation }: any) {
               value={tempPassword}
               onChangeText={setTempPassword}
               secureTextEntry
+              editable={!loading}
             />
           </View>
 
+          {error && (
+            <Text style={styles.errorText}>{error}</Text>
+          )}
+
           <TouchableOpacity 
-            style={[styles.button, (!email || !tempPassword) && styles.buttonDisabled]} 
+            style={[styles.button, (!email || !tempPassword || loading) && styles.buttonDisabled]} 
             onPress={handleLogin}
-            disabled={!email || !tempPassword}
+            disabled={!email || !tempPassword || loading}
           >
-            <Text style={styles.buttonText}>Suivant</Text>
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.buttonText}>Suivant</Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -129,5 +175,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
   },
 });
