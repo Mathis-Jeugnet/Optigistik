@@ -21,6 +21,7 @@ export interface SessionMeta {
   date: string
   resources_active: number
   name?: string
+  start_time?: string;
 }
 
 export interface DeliverySession {

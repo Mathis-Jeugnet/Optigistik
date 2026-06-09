@@ -104,23 +104,40 @@ export default function PivotPointsForm() {
   const [endAddress, setEndAddress] = useState(session?.end_node.address ?? '')
   const [date, setDate] = useState(session?.meta.date ?? new Date().toISOString().slice(0, 10))
   const [vehicles, setVehicles] = useState(session?.meta.resources_active ?? 1)
+  const [startTime, setStartTime] = useState(session?.meta.start_time ?? '08:00') // NOUVEAU: État pour l'heure de départ
 
   useEffect(() => {
-    if (!session) initSession({ date, resources_active: vehicles })
+    // Si la session n'existe pas, on l'initialise avec l'heure de départ par défaut.
+    // Assure-toi que la fonction initSession accepte start_time si tu la mets à jour.
+    if (!session) initSession({ date, resources_active: vehicles, start_time: startTime } as any)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleMetaChange = (patch: { date?: string; resources_active?: number }) => {
+  // Mise à jour de handleMetaChange pour inclure start_time
+  const handleMetaChange = (patch: { date?: string; resources_active?: number; start_time?: string }) => {
     const newDate = patch.date ?? date
     const newVehicles = patch.resources_active ?? vehicles
+    const newStartTime = patch.start_time ?? startTime
+
     if (patch.date) setDate(newDate)
     if (patch.resources_active !== undefined) setVehicles(newVehicles)
+    if (patch.start_time !== undefined) setStartTime(newStartTime)
+
     if (session) {
       useDeliveryStore.setState((s) => ({
-        session: s.session ? { ...s.session, meta: { date: newDate, resources_active: newVehicles }, updatedAt: new Date() } : null,
+        session: s.session ? { 
+            ...s.session, 
+            meta: { 
+                ...s.session.meta,
+                date: newDate, 
+                resources_active: newVehicles,
+                start_time: newStartTime // Sauvegarde dans Zustand
+            }, 
+            updatedAt: new Date() 
+        } : null,
         isDirty: true,
       }))
     } else {
-      initSession({ date: newDate, resources_active: newVehicles })
+      initSession({ date: newDate, resources_active: newVehicles, start_time: newStartTime } as any)
     }
   }
 
@@ -138,7 +155,8 @@ export default function PivotPointsForm() {
     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
       <h3 className="text-xl font-bold text-opti-blue font-display mb-6">Paramètres de la tournée</h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      {/* J'ai passé les colonnes de 2 à 3 pour intégrer le nouveau champ */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="space-y-1.5">
           <label htmlFor="tour-date" className="block text-sm font-bold text-opti-blue">Date de la tournée</label>
           <input
@@ -150,6 +168,20 @@ export default function PivotPointsForm() {
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
           />
         </div>
+
+        {/* NOUVEAU: Champ pour l'heure de départ */}
+        <div className="space-y-1.5">
+          <label htmlFor="start-time" className="block text-sm font-bold text-opti-blue">Heure de départ (Dépôt)</label>
+          <input
+            id="start-time"
+            aria-label="Heure de départ de la tournée"
+            type="time"
+            value={startTime}
+            onChange={(e) => handleMetaChange({ start_time: e.target.value })}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
+          />
+        </div>
+
         <div className="space-y-1.5">
           <label htmlFor="vehicles-count" className="block text-sm font-bold text-opti-blue">Nombre de véhicules actifs</label>
           <input

@@ -107,7 +107,7 @@ export function buildSolverPayload(
     break_duration_seconds: 2700, // 45min
     max_continuous_driving_seconds: 16200, // 4h30
     max_continuous_work_seconds: 21600, // 6h00
-    current_time: timeToSeconds("08:00"), 
+    current_time: timeToSeconds(session.meta.start_time || "08:00"), 
     allow_multi_trip: true
   };
 }
