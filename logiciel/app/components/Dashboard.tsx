@@ -7,6 +7,7 @@ import AlertsList from "./AlertsList";
 import MapSection from "./MapSection";
 import FleetSection from "../fleet/page";
 import { UserProfile } from "../context/AuthContext";
+import { useTrafficAlerts } from "@/hooks/useTrafficAlerts";
 import { MessagingProvider } from "../context/MessagingContext";
 import RecentMessagesWidget from "./RecentMessagesWidget";
 
@@ -19,6 +20,7 @@ interface DashboardProps {
 export default function Dashboard({ user, profile, onLogout }: DashboardProps) { // 3. Récupération ici
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
+  const { alerts, incidents, isLoading: alertsLoading, error: alertsError } = useTrafficAlerts();
 
   return (
     <MessagingProvider>
@@ -31,27 +33,36 @@ export default function Dashboard({ user, profile, onLogout }: DashboardProps) {
           toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
 
-        <main className="flex-1 p-8 bg-white h-screen overflow-y-auto">
-          {activeTab === "home" && (
-            <>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                <RecentMessagesWidget />
-                <AlertsList alerts={[]} />
-              </div>
-              <MapSection />
-            </>
-          )}
-
-          {activeTab === "fleet" && (
-            <FleetSection />
-          )}
-
-          {activeTab !== "home" && activeTab !== "fleet" && (
-            <div className="flex items-center justify-center h-full text-gray-400">
-              En cours de développement...
+      <main className="flex-1 p-8 bg-white h-screen overflow-y-auto">
+        {activeTab === "home" && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              <MessagesList messages={[]} unreadCount={0} />
+              <AlertsList alerts={alerts} isLoading={alertsLoading} error={alertsError} />
             </div>
-          )}
-        </main>
+            <MapSection trafficIncidents={incidents} />
+          </>
+        )}
+        {activeTab === "home" && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              <RecentMessagesWidget />
+              <AlertsList alerts={[]} />
+            </div>
+            <MapSection />
+          </>
+        )}
+
+        {activeTab === "fleet" && (
+          <FleetSection />
+        )}
+
+        {activeTab !== "home" && activeTab !== "fleet" && (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            En cours de développement...
+          </div>
+        )}
+      </main>
       </div>
     </MessagingProvider>
   );
