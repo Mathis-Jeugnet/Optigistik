@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../context/AuthContext'
 import { Menu } from 'lucide-react'
 import Sidebar from './Sidebar'
+import { MessagingProvider } from '../context/MessagingContext'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -29,6 +30,7 @@ export default function AppShell({ children }: AppShellProps) {
   if (!user) return null
 
   return (
+    <MessagingProvider>
     <div className="flex min-h-screen bg-white font-sans">
       {/* Mobile backdrop */}
       {isMobileOpen && (
@@ -78,5 +80,6 @@ export default function AppShell({ children }: AppShellProps) {
         </main>
       </div>
     </div>
+    </MessagingProvider>
   )
 }

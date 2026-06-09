@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { useAuth } from "../context/AuthContext";
+import { MessagingProvider } from "../context/MessagingContext";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, profile, logout } = useAuth();
@@ -28,19 +29,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar 
-        user={user} 
-        profile={profile}
-        onLogout={logout} 
-        isCollapsed={isCollapsed}
-        toggleSidebar={() => setIsCollapsed(!isCollapsed)}
-      />
-      <main className="flex-1 p-8 h-screen overflow-y-auto">
-        <div className="max-w-[1600px] mx-auto w-full">
-          {children}
-        </div>
-      </main>
-    </div>
+    <MessagingProvider>
+      <div className="flex min-h-screen bg-slate-50">
+        <Sidebar
+          user={user}
+          profile={profile}
+          onLogout={logout}
+          isCollapsed={isCollapsed}
+          toggleSidebar={() => setIsCollapsed(!isCollapsed)}
+        />
+        <main className="flex-1 p-8 h-screen overflow-y-auto">
+          <div className="max-w-[1600px] mx-auto w-full">
+            {children}
+          </div>
+        </main>
+      </div>
+    </MessagingProvider>
   );
 }

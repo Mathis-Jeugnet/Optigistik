@@ -1,6 +1,5 @@
 "use client";
 
-import { User } from "lucide-react";
 
 export interface MessageData {
   id: string;
@@ -32,13 +31,12 @@ export default function MessagesList({ messages, unreadCount = 0 }: MessagesList
           messages.map((msg) => (
             <div key={msg.id} className="flex gap-4">
               <div className="relative shrink-0 mt-1">
-                 <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden flex items-center justify-center">
-                   {/* Espace prêt pour l'avatar depuis la BDD */}
-                   <User className="w-5 h-5 text-slate-400" />
-                 </div>
-                 {msg.unread && (
-                   <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></div>
-                 )}
+                <div className="w-10 h-10 rounded-full bg-opti-blue flex items-center justify-center text-white font-bold text-sm">
+                  {msg.name.charAt(0).toUpperCase()}
+                </div>
+                {msg.unread && (
+                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-opti-red border-2 border-white rounded-full"></div>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-baseline mb-1">
