@@ -200,7 +200,7 @@ export default function GenerateTourneeButton() {
           }));
           await saveVehicleTrips(trips);
 
-          // CARTOGRAPHIE AVANCÉE DE LA TIMELINE
+          // 3. CARTOGRAPHIE AVANCÉE DE LA TIMELINE
           const realClusters = optimizationResult.vehicles.map((v: any) => {
             const vehicleDb = allVehicles.find(veh => veh.id === v.vehicle_id);
             const vehicleName = vehicleDb?.plate || vehicleDb?.name || v.vehicle_id;
@@ -211,58 +211,29 @@ export default function GenerateTourneeButton() {
 
               if (stop.stop_type === 'DELIVERY') {
                 const point = session.delivery_points.find((p: any) => p.id === baseId);
-                const unloadTime = point ? Number(point.unloading_time_at_client) : 30;
                 
                 return {
                   ...point,
                   step_type: 'DELIVERY',
                   arrival_time: stop.arrival_time,
-                  action_duration: isNaN(unloadTime) ? 30 : unloadTime,
+                  action_duration: stop.action_duration || 0, // SOURCE DE VÉRITÉ : Backend
+                  pallets: stop.delivered_pallets || point?.pallets, // SOURCE DE VÉRITÉ : Backend
                   uid: `del-${index}`
                 };
               } else if (stop.stop_type === 'RELOAD') {
-                // Calcul robuste en cas de donnée manquante depuis le solveur
-                let reloadTime = stop.loading_duration_min || 0;
-                if (!reloadTime) {
-                  for (let i = index + 1; i < v.route.length; i++) {
-                    if (v.route[i].stop_type === 'RELOAD' || v.route[i].stop_type === 'DEPOT_END') break;
-                    if (v.route[i].stop_type === 'DELIVERY') {
-                      const bId = v.route[i].client_id.split('_PART_')[0];
-                      const p = session.delivery_points.find((dp: any) => dp.id === bId);
-                      if (p) {
-                        const lt = Number(p.loading_time_at_depot);
-                        reloadTime += isNaN(lt) ? 15 : lt;
-                      }
-                    }
-                  }
-                }
                 return {
                   step_type: 'RELOAD',
                   address: 'Retour Dépôt (Rechargement)',
                   arrival_time: stop.arrival_time,
-                  action_duration: reloadTime,
+                  action_duration: stop.action_duration || 0, // SOURCE DE VÉRITÉ : Backend
                   uid: `rel-${index}`
                 };
               } else if (stop.stop_type === 'DEPOT_START') {
-                // Calcul robuste du premier chargement 
-                let initialLoadingTime = 0;
-                for (let i = index + 1; i < v.route.length; i++) {
-                  if (v.route[i].stop_type === 'RELOAD' || v.route[i].stop_type === 'DEPOT_END') break;
-                  if (v.route[i].stop_type === 'DELIVERY') {
-                    const bId = v.route[i].client_id.split('_PART_')[0];
-                    const p = session.delivery_points.find((dp: any) => dp.id === bId);
-                    if (p) {
-                      const lt = Number(p.loading_time_at_depot);
-                      initialLoadingTime += isNaN(lt) ? 15 : lt;
-                    }
-                  }
-                }
-
                 return {
                   step_type: 'DEPOT_START',
                   address: session.origin_node.address,
-                  arrival_time: stop.arrival_time - initialLoadingTime,
-                  action_duration: initialLoadingTime,
+                  arrival_time: stop.arrival_time, 
+                  action_duration: stop.action_duration || 0, // SOURCE DE VÉRITÉ : Backend
                   uid: `start-${index}`
                 };
               } else if (stop.stop_type === 'DEPOT_END') {
@@ -274,14 +245,12 @@ export default function GenerateTourneeButton() {
                   uid: `end-${index}`
                 };
               } else if (stop.stop_type === 'BREAK') {
-                // On vérifie si la pause est due à l'attente d'un créneau ou à la fatigue
                 const isWaitBreak = stop.client_id === 'PAUSE_ATTENTE';
-                
                 return {
                   step_type: 'BREAK',
                   address: isWaitBreak ? 'Pause optimisée (Attente ouverture client)' : 'Pause Réglementaire (RSE)',
                   arrival_time: stop.arrival_time,
-                  action_duration: 45,
+                  action_duration: stop.action_duration || 45,
                   uid: `break-${index}`
                 };
               }
