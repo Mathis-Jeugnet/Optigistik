@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../context/AuthContext'
 import { Menu } from 'lucide-react'
@@ -18,6 +18,13 @@ export default function AppShell({ children }: AppShellProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const router = useRouter()
 
+  // Déconnecté sur une page protégée (ex : accès direct à /tournees ou session
+  // expirée) → redirection vers la page de connexion, quelle que soit l'URL.
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/')
+    }
+  }, [user, loading, router])
 
   if (loading) {
     return (
