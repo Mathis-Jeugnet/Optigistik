@@ -12,9 +12,10 @@ export interface MessageData {
 interface MessagesListProps {
   messages: MessageData[];
   unreadCount?: number;
+  onItemClick?: (id: string) => void;
 }
 
-export default function MessagesList({ messages, unreadCount = 0 }: MessagesListProps) {
+export default function MessagesList({ messages, unreadCount = 0, onItemClick }: MessagesListProps) {
   return (
     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-full">
       <div className="flex justify-between items-center mb-4">
@@ -26,16 +27,20 @@ export default function MessagesList({ messages, unreadCount = 0 }: MessagesList
         )}
       </div>
 
-      <div className="space-y-5 flex-1">
+      <div className="flex flex-col gap-2 flex-1">
         {messages.length > 0 ? (
           messages.map((msg) => (
-            <div key={msg.id} className="flex gap-4">
-              <div className="relative shrink-0 mt-1">
-                <div className="w-10 h-10 rounded-full bg-opti-blue flex items-center justify-center text-white font-bold text-sm">
+            <div
+              key={msg.id}
+              className={`flex gap-3 rounded-xl px-2 py-1.5 -mx-2 transition-colors ${onItemClick ? "cursor-pointer hover:bg-gray-50" : ""}`}
+              onClick={() => onItemClick?.(msg.id)}
+            >
+              <div className="relative shrink-0 mt-0.5">
+                <div className="w-9 h-9 rounded-full bg-opti-blue flex items-center justify-center text-white font-bold text-sm">
                   {msg.name.charAt(0).toUpperCase()}
                 </div>
                 {msg.unread && (
-                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-opti-red border-2 border-white rounded-full"></div>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-opti-red border-2 border-white rounded-full"></div>
                 )}
               </div>
               <div className="flex-1 min-w-0">
