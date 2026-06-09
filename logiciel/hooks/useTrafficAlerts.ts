@@ -54,7 +54,8 @@ interface UseTrafficAlertsResult {
  * bruts (avec coordonnées GPS) pour les afficher sur la carte.
  */
 export function useTrafficAlerts(options: { limit?: number } = {}): UseTrafficAlertsResult {
-  const { limit = 8 } = options
+  // limit non défini => on récupère tous les incidents actifs du jour.
+  const { limit } = options
   const [incidents, setIncidents] = useState<TrafficIncident[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -67,7 +68,8 @@ export function useTrafficAlerts(options: { limit?: number } = {}): UseTrafficAl
     setError(null)
 
     try {
-      const res = await fetch(`/api/traffic?limit=${limit}`, { signal: controller.signal })
+      const url = limit ? `/api/traffic?limit=${limit}` : '/api/traffic'
+      const res = await fetch(url, { signal: controller.signal })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data: TrafficResponse = await res.json()
       setIncidents(data.incidents)

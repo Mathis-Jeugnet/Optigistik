@@ -220,9 +220,10 @@ export function selectIncidents(
   incidents: TrafficIncident[],
   options: { limit?: number; includeMinor?: boolean; activeToday?: boolean } = {}
 ): TrafficIncident[] {
-  const { limit = 8, includeMinor = false, activeToday = true } = options
+  // limit non défini => aucun plafond (on renvoie tous les incidents actifs).
+  const { limit, includeMinor = false, activeToday = true } = options
   const today = parisToday()
-  return incidents
+  const selected = incidents
     .filter((i) => includeMinor || i.kind !== 'info')
     .filter((i) => !activeToday || isActiveToday(i, today))
     .sort((a, b) => {
@@ -232,7 +233,7 @@ export function selectIncidents(
       if (kind !== 0) return kind
       return (b.startTime ?? '').localeCompare(a.startTime ?? '')
     })
-    .slice(0, limit)
+  return typeof limit === 'number' && limit > 0 ? selected.slice(0, limit) : selected
 }
 
 // --- Libellés & helpers de présentation (partagés hook + carte) ---

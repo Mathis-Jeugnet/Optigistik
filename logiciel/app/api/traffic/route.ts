@@ -13,7 +13,9 @@ export const revalidate = REVALIDATE_SECONDS
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const limit = Number(searchParams.get('limit')) || 8
+  // limit absent => pas de plafond (on renvoie tous les incidents actifs).
+  const limitParam = searchParams.get('limit')
+  const limit = limitParam ? Number(limitParam) : undefined
   const includeMinor = searchParams.get('includeMinor') === 'true'
   const activeToday = searchParams.get('activeToday') !== 'false'
 

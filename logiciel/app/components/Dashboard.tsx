@@ -19,7 +19,7 @@ interface DashboardProps {
 export default function Dashboard({ user, profile, onLogout }: DashboardProps) { // 3. Récupération ici
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
-  const { alerts, incidents, isLoading: alertsLoading, error: alertsError } = useTrafficAlerts({ limit: 25 });
+  const { alerts, incidents, isLoading: alertsLoading, error: alertsError } = useTrafficAlerts();
 
   return (
     <div className="flex min-h-screen bg-white font-sans">
