@@ -8,6 +8,7 @@ import "leaflet-routing-machine";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import { geocodeAddress } from "@/services/geocoding";
 import { KIND_LABEL, incidentMeta, type TrafficIncident, type TrafficKind, type TrafficSeverity } from "@/services/traffic";
+import { TrafficCone } from "lucide-react";
 
 const DefaultIcon = L.icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -188,6 +189,9 @@ export default function DynamicMap({ isFullScreen, activeSessions = [], trafficI
   const [selectedSessionId, setSelectedSessionId] = useState<string>("all");
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("all");
   const [routesToRender, setRoutesToRender] = useState<any[]>([]);
+  const [showTraffic, setShowTraffic] = useState(true); // calque infos routières (incidents Bison Futé)
+
+  const trafficCount = trafficIncidents.filter((i) => i.coordinates).length;
   
   const centerPosition: L.LatLngExpression = [46.2276, 2.2137];
   const colors = ["#0ea5e9", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
@@ -306,7 +310,27 @@ export default function DynamicMap({ isFullScreen, activeSessions = [], trafficI
       
       {/* Panneaux de filtres sur la carte */}
       <div className="absolute top-4 left-16 z-[1000] bg-white rounded-lg shadow-md border border-gray-200 flex flex-col sm:flex-row divide-y sm:divide-y-0 sm:divide-x divide-gray-100 overflow-hidden">
-        
+
+        {/* Calque "Infos routières" : afficher/masquer les incidents trafic pour bien voir les tournées */}
+        <button
+          onClick={() => setShowTraffic((v) => !v)}
+          title={showTraffic ? "Masquer les infos routières" : "Afficher les infos routières"}
+          aria-pressed={showTraffic}
+          className={`flex items-center gap-2 text-xs font-bold p-2.5 outline-none cursor-pointer transition-colors ${
+            showTraffic ? "text-amber-600 bg-amber-50/70 hover:bg-amber-50" : "text-slate-400 hover:bg-gray-50"
+          }`}
+        >
+          <TrafficCone className="w-4 h-4 shrink-0" />
+          Infos routières
+          <span
+            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+              showTraffic ? "bg-amber-500 text-white" : "bg-slate-200 text-slate-500"
+            }`}
+          >
+            {trafficCount}
+          </span>
+        </button>
+
         {/* On ne montre le sélecteur de "Tournée" QUE s'il y a plus d'une tournée cochée dans le menu parent */}
         {activeSessions.length > 1 && (
           <select 
@@ -339,7 +363,7 @@ export default function DynamicMap({ isFullScreen, activeSessions = [], trafficI
 
       {routesToRender.map((r) => <Routing key={r.id} {...r} />)}
 
-      <TrafficMarkers incidents={trafficIncidents} />
+      {showTraffic && <TrafficMarkers incidents={trafficIncidents} />}
     </MapContainer>
   );
 }
