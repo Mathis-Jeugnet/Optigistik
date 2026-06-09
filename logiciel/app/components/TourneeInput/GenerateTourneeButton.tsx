@@ -55,9 +55,6 @@ export default function GenerateTourneeButton() {
   const [isOpen, setIsOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   
-  // État local pour palier au délai de mise à jour Zustand/Firebase
-  const [lastSignature, setLastSignature] = useState<string | null>(null)
-  
   // États des données
   const [result, setResult] = useState<ClusteringResult | null>(null)
   const [unlocated, setUnlocated] = useState<string[]>([])
@@ -73,18 +70,16 @@ export default function GenerateTourneeButton() {
     if (!session) return
     setIsOpen(true)
     
-    // --- 1. VÉRIFICATION DU CACHE ---
+    // --- 1. VÉRIFICATION DU CACHE (Totalement synchronisé via Zustand) ---
     const currentSignature = generateSessionSignature(session);
-    const knownSignature = lastSignature || session.optimization_signature;
+    const hasClusters = (session.clusters?.length ?? 0) > 0;
+    const hasAffretement = (session.affretement_report?.length ?? 0) > 0;
 
-    const hasClusters = ((session.clusters?.length ?? 0) > 0) || ((result?.clusters?.length ?? 0) > 0);
-    const hasAffretement = ((session.affretement_report?.length ?? 0) > 0) || (affretement.length > 0);
-
-    // Si on a la même signature et qu'on a déjà un résultat (soit routes, soit affrètement)
-    if (knownSignature === currentSignature && (hasClusters || hasAffretement)) {
-      setResult({ clusters: session.clusters || result?.clusters || [] });
-      setUnlocated(session.unlocated_points || unlocated || []);
-      setAffretement(session.affretement_report || affretement || []);
+    // Si on a la même signature en mémoire et qu'un résultat existe, on coupe court.
+    if (session.optimization_signature === currentSignature && (hasClusters || hasAffretement)) {
+      setResult({ clusters: session.clusters || [] });
+      setUnlocated(session.unlocated_points || []);
+      setAffretement(session.affretement_report || []);
       setIsProcessing(false);
       return; 
     }
@@ -180,21 +175,36 @@ export default function GenerateTourneeButton() {
               .filter(Boolean)
           }));
 
+          const newAffretementReport = optimizationResult.rapport_affretement || [];
+
+          // SAUVEGARDE DANS FIREBASE
           await updateDoc(doc(db, 'delivery_sessions', session.id), {
             status: "VALIDATED",
             clusters: realClusters,
             unlocated_points: failed,
             optimized_routes: optimizationResult.vehicles,
             summary: optimizationResult.summary,
-            affretement_report: optimizationResult.rapport_affretement || [],
-            optimization_signature: currentSignature, // On ancre la nouvelle signature en BDD
+            affretement_report: newAffretementReport,
+            optimization_signature: currentSignature,
             updatedAt: new Date()
           });
           
-          // Mémorisation instantanée pour éviter le re-calcul lors de clics rapides
-          setLastSignature(currentSignature);
+          // LA VRAIE CORRECTION EST ICI : On force la mise à jour immédiate de l'état Zustand
+          useDeliveryStore.setState((state) => ({
+            session: state.session ? {
+              ...state.session,
+              status: "VALIDATED",
+              clusters: realClusters,
+              unlocated_points: failed,
+              optimized_routes: optimizationResult.vehicles,
+              summary: optimizationResult.summary,
+              affretement_report: newAffretementReport,
+              optimization_signature: currentSignature,
+              updatedAt: new Date() as any
+            } : null
+          }));
           
-          setAffretement(optimizationResult.rapport_affretement || []);
+          setAffretement(newAffretementReport);
           setSolverMessage(optimizationResult.message_exploitant || null);
           setResult({ clusters: realClusters });
           setUnlocated(failed);
