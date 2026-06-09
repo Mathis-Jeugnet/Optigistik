@@ -8,7 +8,11 @@ from models import OptimizationRequest
 
 logger = logging.getLogger(__name__)
 
-VEHICLE_ACTIVATION_PENALTY = 1000000
+# --- CORRECTION : PÉNALITÉ ASTRONOMIQUE ---
+# Démarrer un nouveau camion ajoute un coût mathématique énorme (1000 km)
+# Le solveur fera donc TOUT pour utiliser les camions déjà actifs, 
+# quitte à leur faire faire 5 ou 6 rechargements !
+VEHICLE_ACTIVATION_PENALTY = 1000000 
 
 class Route:
     def __init__(self, vehicle, request: OptimizationRequest):
@@ -210,6 +214,7 @@ class Route:
 
         return {"status": "VALID"}
 
+
 class VRPOptimizer:
     def __init__(self, request: OptimizationRequest, allow_split_deliveries: bool = True):
         self.request = request
@@ -283,12 +288,10 @@ class VRPOptimizer:
             v.start_node_idx = old_to_new_mapping[v.start_node_idx]
             v.end_node_idx = old_to_new_mapping[v.end_node_idx]
 
-    # --- NOUVEAUTÉ : Fonction de calcul du coût total d'un ensemble de routes ---
     def _evaluate_routes_cost(self, routes: List[Route]) -> float:
         cost = 0
         for r in routes:
             if r.nodes:
-                # Ajout de la pénalité d'activation du véhicule
                 cost += r.total_distance + VEHICLE_ACTIVATION_PENALTY
         return cost
 
@@ -332,8 +335,6 @@ class VRPOptimizer:
 
         shaken_routes = self._insert_nodes_regret(shaken_routes, nodes_to_reinsert, use_priority_multiplier=(max_unperformed_priority > 1))
         shaken_routes = self._variable_neighborhood_descent(shaken_routes)
-        
-        # --- NOUVEAUTÉ : Évaluation avec pénalité ---
         shaken_distance = self._evaluate_routes_cost(shaken_routes)
 
         new_unperformed_score = sum(
@@ -393,8 +394,6 @@ class VRPOptimizer:
         routes = self._variable_neighborhood_descent(routes)
         
         best_routes = [r.copy() for r in routes]
-        
-        # --- NOUVEAUTÉ : Évaluation avec pénalité ---
         best_distance = self._evaluate_routes_cost(best_routes)
 
         best_unperformed_score = sum(
@@ -473,9 +472,9 @@ class VRPOptimizer:
                     for pos in range(len(route.nodes) + 1):
                         cloned = route.clone_and_insert(node_idx, pos)
                         if cloned.is_valid:
-                            # --- NOUVEAUTÉ : On prend en compte la pénalité si c'est le 1er node ---
+                            # --- CORRECTION : La pénalité s'applique si la route était VIDE avant ---
                             cost = cloned.total_distance
-                            if not route.nodes:
+                            if len(route.nodes) == 0:
                                 cost += VEHICLE_ACTIVATION_PENALTY
                                 
                             if cost < best_cost:
@@ -607,14 +606,13 @@ class VRPOptimizer:
                                 test_route2.recalculate(generate_timeline=False)
                                 
                                 if test_route1.is_valid and test_route2.is_valid:
-                                    # --- NOUVEAUTÉ : On prend en compte la pénalité si on vide un véhicule ---
                                     current_cost = route1.total_distance + route2.total_distance
-                                    if not test_route1.nodes: current_cost += VEHICLE_ACTIVATION_PENALTY
-                                    if not test_route2.nodes: current_cost += VEHICLE_ACTIVATION_PENALTY
+                                    if len(route1.nodes) > 0 and len(test_route1.nodes) == 0: current_cost += VEHICLE_ACTIVATION_PENALTY
+                                    if len(route2.nodes) > 0 and len(test_route2.nodes) == 0: current_cost += VEHICLE_ACTIVATION_PENALTY
                                     
                                     new_cost = test_route1.total_distance + test_route2.total_distance
-                                    if not route1.nodes: new_cost += VEHICLE_ACTIVATION_PENALTY
-                                    if not route2.nodes: new_cost += VEHICLE_ACTIVATION_PENALTY
+                                    if len(test_route1.nodes) > 0 and len(route1.nodes) == 0: new_cost += VEHICLE_ACTIVATION_PENALTY
+                                    if len(test_route2.nodes) > 0 and len(route2.nodes) == 0: new_cost += VEHICLE_ACTIVATION_PENALTY
 
                                     if new_cost < current_cost - 10:
                                         routes[r1_idx], routes[r2_idx] = test_route1, test_route2
@@ -642,14 +640,13 @@ class VRPOptimizer:
                             test_route2 = route2.clone_and_insert(node_idx, pos2) if r1_idx != r2_idx else test_route1.clone_and_insert(node_idx, pos2 if pos2 < pos1 else pos2 - 1)
                             
                             if test_route1.is_valid and test_route2.is_valid:
-                                # --- NOUVEAUTÉ : On prend en compte la pénalité si on vide un véhicule ---
                                 current_cost = route1.total_distance + route2.total_distance
-                                if not test_route1.nodes: current_cost += VEHICLE_ACTIVATION_PENALTY
-                                if not test_route2.nodes: current_cost += VEHICLE_ACTIVATION_PENALTY
+                                if len(route1.nodes) > 0 and len(test_route1.nodes) == 0: current_cost += VEHICLE_ACTIVATION_PENALTY
+                                if len(route2.nodes) > 0 and len(test_route2.nodes) == 0: current_cost += VEHICLE_ACTIVATION_PENALTY
                                 
                                 new_cost = test_route1.total_distance + test_route2.total_distance
-                                if not route1.nodes: new_cost += VEHICLE_ACTIVATION_PENALTY
-                                if not route2.nodes: new_cost += VEHICLE_ACTIVATION_PENALTY
+                                if len(test_route1.nodes) > 0 and len(route1.nodes) == 0: new_cost += VEHICLE_ACTIVATION_PENALTY
+                                if len(test_route2.nodes) > 0 and len(route2.nodes) == 0: new_cost += VEHICLE_ACTIVATION_PENALTY
 
                                 if new_cost < current_cost - 10:
                                     routes[r1_idx], routes[r2_idx] = test_route1, test_route2
