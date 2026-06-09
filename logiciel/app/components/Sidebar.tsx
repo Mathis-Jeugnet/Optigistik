@@ -1,11 +1,12 @@
 "use client";
 
-import { Home, Truck, Map as MapIcon, Users, Menu, LogOut, ShieldCheck } from "lucide-react";
+import { Home, Truck, Map as MapIcon, Users, Menu, LogOut, ShieldCheck, MessageSquare } from "lucide-react";
 import { User } from "firebase/auth";
 import Link from "next/link";
 import RoleGuard from "./RoleGuard";
 import { usePathname } from "next/navigation";
 import { UserProfile } from "../context/AuthContext";
+import { useMessaging } from "../context/MessagingContext";
 
 interface SidebarProps {
   user: User | null;
@@ -18,6 +19,7 @@ interface SidebarProps {
 export default function Sidebar({ user, profile, onLogout, isCollapsed, toggleSidebar }: SidebarProps) {
   const pathname = usePathname();
   const userRole = profile?.role;
+  const { totalUnread } = useMessaging();
 
   // `allowedRoles` aligne la nav sur la matrice de permissions (cf. firestore.rules / RoleGuard).
   const menuItems = [
@@ -64,6 +66,26 @@ export default function Sidebar({ user, profile, onLogout, isCollapsed, toggleSi
             </Link>
           );
         })}
+
+        {/* Messagerie : accessible à tous les rôles */}
+        <Link
+          href="/messagerie"
+          className={`w-full flex items-center gap-4 py-3 px-4 rounded-l-full transition-all group relative ${
+            pathname === "/messagerie"
+              ? "bg-red-50 text-opti-red font-bold"
+              : "text-opti-blue hover:bg-gray-50 hover:text-opti-red font-semibold"
+          }`}
+        >
+          <div className="relative shrink-0">
+            <MessageSquare className={`w-5 h-5 ${pathname === "/messagerie" ? "text-opti-red" : "text-opti-blue"}`} />
+            {totalUnread > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-opti-red text-white text-[9px] font-bold flex items-center justify-center">
+                {totalUnread > 9 ? "9+" : totalUnread}
+              </span>
+            )}
+          </div>
+          {!isCollapsed && <span className="text-sm truncate">Messagerie</span>}
+        </Link>
 
         {/* Lien réservé à l'Admin. fallback={null} pour masquer silencieusement (pas d'écran AccessDenied dans la nav). */}
         <RoleGuard allowedRoles={["Admin"]} fallback={null}>
