@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import DashboardLayout from "@/app/components/DashboardLayout";
 import ConversationList from "@/app/components/messaging/ConversationList";
 import ChatWindow from "@/app/components/messaging/ChatWindow";
 import NewConversationModal from "@/app/components/messaging/NewConversationModal";
 import { useConversations } from "@/app/hooks/useConversations";
 
-export default function MessageriePage() {
+function MessagerieContent() {
   const { conversations, loading } = useConversations();
+  const searchParams = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const convParam = searchParams.get("conv");
+    if (convParam) setSelectedId(convParam);
+  }, [searchParams]);
   const [showNewModal, setShowNewModal] = useState(false);
 
   const selectedConversation = conversations.find((c) => c.id === selectedId) ?? null;
@@ -51,5 +58,13 @@ export default function MessageriePage() {
         />
       )}
     </DashboardLayout>
+  );
+}
+
+export default function MessageriePage() {
+  return (
+    <Suspense>
+      <MessagerieContent />
+    </Suspense>
   );
 }

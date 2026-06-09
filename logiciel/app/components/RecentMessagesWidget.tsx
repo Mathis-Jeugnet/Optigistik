@@ -11,7 +11,7 @@ export default function RecentMessagesWidget() {
   const { user } = useAuth();
   const { conversations, totalUnread } = useConversations();
 
-  const recentMessages = conversations.slice(0, 3).map((conv: Conversation) => ({
+  const recentMessages = conversations.slice(0, 4).map((conv: Conversation) => ({
     id: conv.id,
     name: getConversationDisplayName(conv, user?.uid ?? ""),
     time: formatMessageTime(conv.lastMessageAt),
@@ -19,9 +19,13 @@ export default function RecentMessagesWidget() {
     unread: (conv.unreadCounts?.[user?.uid ?? ""] ?? 0) > 0,
   }));
 
+  const handleItemClick = (id: string) => {
+    router.push(`/messagerie?conv=${id}`);
+  };
+
   return (
-    <div className="cursor-pointer" onClick={() => router.push("/messagerie")}>
-      <MessagesList messages={recentMessages} unreadCount={totalUnread} />
+    <div className="h-full">
+      <MessagesList messages={recentMessages} unreadCount={totalUnread} onItemClick={handleItemClick} />
     </div>
   );
 }
