@@ -8,8 +8,9 @@ const BISON_FUTE_URL =
   process.env.BISON_FUTE_URL ?? 'https://transport.data.gouv.fr/resources/79174/download'
 
 // Le flux change au plus une fois par heure : on met en cache 5 min côté serveur.
+// NB: `revalidate` est un segment config Next => doit être un littéral statique.
+export const revalidate = 300
 const REVALIDATE_SECONDS = 300
-export const revalidate = REVALIDATE_SECONDS
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)

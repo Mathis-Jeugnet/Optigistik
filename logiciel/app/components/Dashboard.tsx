@@ -37,19 +37,10 @@ export default function Dashboard({ user, profile, onLogout }: DashboardProps) {
         {activeTab === "home" && (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              <MessagesList messages={[]} unreadCount={0} />
+              <RecentMessagesWidget />
               <AlertsList alerts={alerts} isLoading={alertsLoading} error={alertsError} />
             </div>
             <MapSection trafficIncidents={incidents} />
-          </>
-        )}
-        {activeTab === "home" && (
-          <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              <RecentMessagesWidget />
-              <AlertsList alerts={[]} />
-            </div>
-            <MapSection />
           </>
         )}
 
