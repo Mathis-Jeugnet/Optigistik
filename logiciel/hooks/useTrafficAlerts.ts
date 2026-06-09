@@ -2,31 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AlertData } from '@/app/components/AlertsList'
-import type { TrafficDirection, TrafficIncident } from '@/services/traffic'
+import { incidentHeading, incidentMeta, type TrafficIncident } from '@/services/traffic'
 
 // Rafraîchissement aligné sur le cache serveur (le flux Bison Futé change ~1x/h).
 const REFRESH_MS = 5 * 60 * 1000
-
-const DIRECTION_LABEL: Record<TrafficDirection, string> = {
-  bothWays: 'double sens',
-  northBound: 'sens Nord',
-  southBound: 'sens Sud',
-  eastBound: 'sens Est',
-  westBound: 'sens Ouest',
-  innerRing: 'sens intérieur',
-  outerRing: 'sens extérieur',
-}
-
-// Type précis de travaux (DATEX II roadMaintenanceType) -> libellé FR.
-const MAINTENANCE_LABEL: Record<string, string> = {
-  repairWork: 'Réparation',
-  maintenanceWork: 'Entretien',
-  roadworks: 'Travaux de chaussée',
-  resurfacingWork: 'Réfection de chaussée',
-  grassCuttingWork: 'Fauchage',
-  roadMarkingWork: 'Marquage au sol',
-  roadsideWork: "Travaux d'accotement",
-}
 
 function formatStart(iso: string | null): string {
   if (!iso) return ''
@@ -40,37 +19,18 @@ function formatStart(iso: string | null): string {
   }).format(date)
 }
 
-// Ligne secondaire : type de travaux · voies impactées · sens de circulation.
-function buildMeta(incident: TrafficIncident): string {
-  const parts: string[] = []
-  if (incident.kind === 'travaux' && incident.maintenanceType) {
-    parts.push(MAINTENANCE_LABEL[incident.maintenanceType] ?? 'Travaux')
-  }
-  if (incident.lanesRestricted && incident.lanesTotal) {
-    const s = incident.lanesRestricted > 1 ? 's' : ''
-    parts.push(`${incident.lanesRestricted} voie${s} sur ${incident.lanesTotal}`)
-  }
-  if (incident.direction) parts.push(DIRECTION_LABEL[incident.direction])
-  return parts.join(' · ')
-}
-
 function toAlert(incident: TrafficIncident): AlertData {
-  // Titre = route (+ commune), avec repli sur la commune ou le nom de voie.
-  const heading = incident.road
-    ? incident.town
-      ? `${incident.road} · ${incident.town}`
-      : incident.road
-    : incident.town ?? incident.link ?? 'Localisation'
   return {
     id: incident.id,
     // L'icône/couleur est pilotée par la sévérité dans AlertsList (cf. props kind/severity).
     type: 'info',
     kind: incident.kind,
     severity: incident.severity,
-    title: heading,
-    meta: buildMeta(incident),
+    title: incidentHeading(incident),
+    meta: incidentMeta(incident),
     description: incident.location,
     time: formatStart(incident.startTime),
+    coordinates: incident.coordinates,
   }
 }
 
@@ -82,6 +42,7 @@ interface TrafficResponse {
 
 interface UseTrafficAlertsResult {
   alerts: AlertData[]
+  incidents: TrafficIncident[]
   isLoading: boolean
   error: string | null
   refresh: () => void
@@ -89,11 +50,12 @@ interface UseTrafficAlertsResult {
 
 /**
  * Récupère les incidents de circulation Bison Futé (via /api/traffic), les transforme
- * en alertes affichables et les rafraîchit périodiquement.
+ * en alertes affichables et les rafraîchit périodiquement. Expose aussi les incidents
+ * bruts (avec coordonnées GPS) pour les afficher sur la carte.
  */
 export function useTrafficAlerts(options: { limit?: number } = {}): UseTrafficAlertsResult {
   const { limit = 8 } = options
-  const [alerts, setAlerts] = useState<AlertData[]>([])
+  const [incidents, setIncidents] = useState<TrafficIncident[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -108,7 +70,7 @@ export function useTrafficAlerts(options: { limit?: number } = {}): UseTrafficAl
       const res = await fetch(`/api/traffic?limit=${limit}`, { signal: controller.signal })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data: TrafficResponse = await res.json()
-      setAlerts(data.incidents.map(toAlert))
+      setIncidents(data.incidents)
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return
       console.error('[useTrafficAlerts]', err)
@@ -127,5 +89,5 @@ export function useTrafficAlerts(options: { limit?: number } = {}): UseTrafficAl
     }
   }, [load])
 
-  return { alerts, isLoading, error, refresh: load }
+  return { alerts: incidents.map(toAlert), incidents, isLoading, error, refresh: load }
 }

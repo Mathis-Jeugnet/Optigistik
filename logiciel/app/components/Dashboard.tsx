@@ -19,7 +19,7 @@ interface DashboardProps {
 export default function Dashboard({ user, profile, onLogout }: DashboardProps) { // 3. Récupération ici
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
-  const { alerts, isLoading: alertsLoading, error: alertsError } = useTrafficAlerts();
+  const { alerts, incidents, isLoading: alertsLoading, error: alertsError } = useTrafficAlerts({ limit: 25 });
 
   return (
     <div className="flex min-h-screen bg-white font-sans">
@@ -38,7 +38,7 @@ export default function Dashboard({ user, profile, onLogout }: DashboardProps) {
               <MessagesList messages={[]} unreadCount={0} />
               <AlertsList alerts={alerts} isLoading={alertsLoading} error={alertsError} />
             </div>
-            <MapSection />
+            <MapSection trafficIncidents={incidents} />
           </>
         )}
 

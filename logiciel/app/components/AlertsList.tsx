@@ -8,6 +8,7 @@ import {
   Construction,
   Info,
   Loader2,
+  MapPin,
 } from "lucide-react";
 import type { TrafficKind, TrafficSeverity } from "@/services/traffic";
 
@@ -21,6 +22,7 @@ export interface AlertData {
   kind?: TrafficKind;
   severity?: TrafficSeverity;
   meta?: string; // ligne secondaire : voies impactées, sens, type de travaux…
+  coordinates?: { lat: number; lon: number } | null;
 }
 
 interface AlertsListProps {
@@ -78,6 +80,12 @@ function renderTrafficAlert(alert: AlertData) {
           <p className="text-[11px] font-medium text-slate-600 truncate">{alert.meta}</p>
         )}
         <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{alert.description}</p>
+        {alert.coordinates && (
+          <p className="flex items-center gap-1 text-[10px] text-slate-400 font-mono mt-0.5">
+            <MapPin className="w-3 h-3 shrink-0" />
+            {alert.coordinates.lat.toFixed(5)}, {alert.coordinates.lon.toFixed(5)}
+          </p>
+        )}
       </div>
     </>
   );

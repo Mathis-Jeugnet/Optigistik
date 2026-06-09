@@ -234,3 +234,54 @@ export function selectIncidents(
     })
     .slice(0, limit)
 }
+
+// --- Libellés & helpers de présentation (partagés hook + carte) ---
+
+export const KIND_LABEL: Record<TrafficKind, string> = {
+  accident: 'Accident',
+  bouchon: 'Bouchon',
+  travaux: 'Travaux',
+  fermeture: 'Fermeture',
+  info: 'Info trafic',
+}
+
+const DIRECTION_LABEL: Record<TrafficDirection, string> = {
+  bothWays: 'double sens',
+  northBound: 'sens Nord',
+  southBound: 'sens Sud',
+  eastBound: 'sens Est',
+  westBound: 'sens Ouest',
+  innerRing: 'sens intérieur',
+  outerRing: 'sens extérieur',
+}
+
+// Type précis de travaux (DATEX II roadMaintenanceType) -> libellé FR.
+const MAINTENANCE_LABEL: Record<string, string> = {
+  repairWork: 'Réparation',
+  maintenanceWork: 'Entretien',
+  roadworks: 'Travaux de chaussée',
+  resurfacingWork: 'Réfection de chaussée',
+  grassCuttingWork: 'Fauchage',
+  roadMarkingWork: 'Marquage au sol',
+  roadsideWork: "Travaux d'accotement",
+}
+
+// Titre court : route (+ commune), avec repli sur commune ou nom de voie.
+export function incidentHeading(i: TrafficIncident): string {
+  if (i.road) return i.town ? `${i.road} · ${i.town}` : i.road
+  return i.town ?? i.link ?? 'Localisation'
+}
+
+// Ligne secondaire : type de travaux · voies impactées · sens de circulation.
+export function incidentMeta(i: TrafficIncident): string {
+  const parts: string[] = []
+  if (i.kind === 'travaux' && i.maintenanceType) {
+    parts.push(MAINTENANCE_LABEL[i.maintenanceType] ?? 'Travaux')
+  }
+  if (i.lanesRestricted && i.lanesTotal) {
+    const s = i.lanesRestricted > 1 ? 's' : ''
+    parts.push(`${i.lanesRestricted} voie${s} sur ${i.lanesTotal}`)
+  }
+  if (i.direction) parts.push(DIRECTION_LABEL[i.direction])
+  return parts.join(' · ')
+}
