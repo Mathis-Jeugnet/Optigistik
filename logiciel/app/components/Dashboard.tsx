@@ -8,6 +8,7 @@ import AlertsList from "./AlertsList";
 import MapSection from "./MapSection";
 import FleetSection from "../fleet/page";
 import { UserProfile } from "../context/AuthContext";
+import { useTrafficAlerts } from "@/hooks/useTrafficAlerts";
 
 interface DashboardProps {
   user: User | null;
@@ -18,6 +19,7 @@ interface DashboardProps {
 export default function Dashboard({ user, profile, onLogout }: DashboardProps) { // 3. Récupération ici
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
+  const { alerts, isLoading: alertsLoading, error: alertsError } = useTrafficAlerts();
 
   return (
     <div className="flex min-h-screen bg-white font-sans">
@@ -34,7 +36,7 @@ export default function Dashboard({ user, profile, onLogout }: DashboardProps) {
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               <MessagesList messages={[]} unreadCount={0} />
-              <AlertsList alerts={[]} />
+              <AlertsList alerts={alerts} isLoading={alertsLoading} error={alertsError} />
             </div>
             <MapSection />
           </>
