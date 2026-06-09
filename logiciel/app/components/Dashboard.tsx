@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { User } from "firebase/auth";
 import Sidebar from "./Sidebar";
-import MessagesList from "./MessagesList";
 import AlertsList from "./AlertsList";
 import MapSection from "./MapSection";
 import FleetSection from "../fleet/page";
 import { UserProfile } from "../context/AuthContext";
 import { useTrafficAlerts } from "@/hooks/useTrafficAlerts";
+import { MessagingProvider } from "../context/MessagingContext";
+import RecentMessagesWidget from "./RecentMessagesWidget";
 
 interface DashboardProps {
   user: User | null;
@@ -22,14 +23,15 @@ export default function Dashboard({ user, profile, onLogout }: DashboardProps) {
   const { alerts, incidents, isLoading: alertsLoading, error: alertsError } = useTrafficAlerts();
 
   return (
-    <div className="flex min-h-screen bg-white font-sans">
-      <Sidebar
-        user={user}
-        profile={profile}
-        onLogout={onLogout}
-        isCollapsed={isSidebarCollapsed}
-        toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-      />
+    <MessagingProvider>
+      <div className="flex min-h-screen bg-white font-sans">
+        <Sidebar
+          user={user}
+          profile={profile}
+          onLogout={onLogout}
+          isCollapsed={isSidebarCollapsed}
+          toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        />
 
       <main className="flex-1 p-8 bg-white h-screen overflow-y-auto">
         {activeTab === "home" && (
@@ -41,17 +43,27 @@ export default function Dashboard({ user, profile, onLogout }: DashboardProps) {
             <MapSection trafficIncidents={incidents} />
           </>
         )}
+        {activeTab === "home" && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              <RecentMessagesWidget />
+              <AlertsList alerts={[]} />
+            </div>
+            <MapSection />
+          </>
+        )}
 
         {activeTab === "fleet" && (
           <FleetSection />
         )}
-        
+
         {activeTab !== "home" && activeTab !== "fleet" && (
           <div className="flex items-center justify-center h-full text-gray-400">
             En cours de développement...
           </div>
         )}
       </main>
-    </div>
+      </div>
+    </MessagingProvider>
   );
 }

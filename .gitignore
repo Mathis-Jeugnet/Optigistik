@@ -7,3 +7,23 @@ ors/graphs/
 
 # Logs ORS
 ors/logs/
+
+# Node
+node_modules/
+dist/
+.expo/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+
+# OS
+.DS_Store
+
+# React Native / Expo
+ios/
+android/

@@ -7,7 +7,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.expo-template-blank-typescript"
     },
     "android": {
       "adaptiveIcon": {
@@ -16,10 +17,22 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Optigistik a besoin du micro pour signaler des incidents vocalement.",
+          "speechRecognitionPermission": "Optigistik a besoin de la reconnaissance vocale pour comprendre vos signalements d'incidents."
+        }
+      ]
+    ]
   }
 }
