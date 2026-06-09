@@ -17,6 +17,7 @@ interface SolverNode {
 }
 
 export function timeToSeconds(timeStr: string): number {
+  if (!timeStr) return 0;
   const [hours, minutes] = timeStr.split(':').map(Number);
   return (hours * 3600) + (minutes * 60);
 }
@@ -26,9 +27,9 @@ export function buildSolverPayload(
   matrixResult: DistanceMatrixResult,
   availableVehicles: Vehicle[]
 ) {
-  // 1. Filtrage dynamique : on ne garde que les véhicules demandés par l'UI
-  const maxVehicles = session.meta.resources_active || availableVehicles.length;
-  const vehiclesToDispatch = availableVehicles.slice(0, maxVehicles);
+  // 1. Fini le bridage ! On envoie toute la flotte disponible au solveur.
+  // C'est l'IA qui décidera combien de camions sont réellement nécessaires.
+  const vehiclesToDispatch = availableVehicles;
 
   // 2. Construction de la matrice des Nœuds
   const nodes: SolverNode[] = [
@@ -53,15 +54,15 @@ export function buildSolverPayload(
       x: geoPoint?.lng || 0,
       y: geoPoint?.lat || 0,
       demand: point.pallets,
-      // Conversion des minutes saisies en secondes
       loading_time: point.loading_time_at_depot * 60,
       unloading_time: point.unloading_time_at_client * 60,
       time_window: {
         start: timeToSeconds(point.time_window.start),
         end: timeToSeconds(point.time_window.end)
       },
-      allowed_vehicle_types: null,
-      required_skills: null,
+      // Transmission des VRAIES contraintes métiers
+      allowed_vehicle_types: point.allowed_vehicle_types && point.allowed_vehicle_types.length > 0 ? point.allowed_vehicle_types : null,
+      required_skills: point.required_skills && point.required_skills.length > 0 ? point.required_skills : null,
       priority_level: 1
     });
   });
@@ -90,9 +91,11 @@ export function buildSolverPayload(
     id: v.id,
     capacity: v.capacity_palettes,
     max_service_time: 43200, 
-    vehicle_type: "STANDARD",
+    // On passe le vrai type du camion pour le matching physique
+    vehicle_type: v.typeId || "STANDARD", 
     start_node_idx: 0,
     end_node_idx: endDepotIndex,
+    // On passe les vraies compétences du camion
     skills: v.specialty ? [v.specialty] : []
   }));
 
