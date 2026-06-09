@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -31,6 +32,12 @@ interface AlertsListProps {
   error?: string | null;
 }
 
+// --- Carrousel vertical ---
+const VISIBLE_SLIDES = 2; // nb d'alertes visibles à la fois
+const SLIDE_HEIGHT = 124; // px, hauteur fixe d'une alerte (contenu clippé au-delà)
+const ROTATE_INTERVAL = 4000; // ms entre deux changements
+const TRANSITION_MS = 600;
+
 // Couleur pilotée par la sévérité de l'incident.
 const SEVERITY_COLOR: Record<TrafficSeverity, string> = {
   highest: "text-opti-red",
@@ -58,8 +65,26 @@ function getKindIcon(kind: TrafficKind, className: string) {
   }
 }
 
-// Rendu d'une alerte "trafic" : icône = catégorie, couleur = sévérité.
-function renderTrafficAlert(alert: AlertData) {
+function getGenericIcon(type: string) {
+  switch (type) {
+    case "urgent": return <AlertCircle className="w-5 h-5 text-opti-red" />;
+    case "maintenance": return <AlertTriangle className="w-5 h-5 text-amber-500" />;
+    case "info": return <Info className="w-5 h-5 text-blue-500" />;
+    default: return <Info className="w-5 h-5 text-slate-500" />;
+  }
+}
+
+function getGenericLabel(type: string) {
+  switch (type) {
+    case "urgent": return <span className="text-[10px] font-bold text-opti-red uppercase tracking-wider">Urgent</span>;
+    case "maintenance": return <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Maintenance</span>;
+    case "info": return <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">Info</span>;
+    default: return null;
+  }
+}
+
+// Contenu d'une alerte "trafic" : icône = catégorie, couleur = sévérité.
+function TrafficAlertContent({ alert }: { alert: AlertData }) {
   const color = SEVERITY_COLOR[alert.severity ?? "unknown"];
   return (
     <>
@@ -91,34 +116,14 @@ function renderTrafficAlert(alert: AlertData) {
   );
 }
 
-export default function AlertsList({ alerts, isLoading, error }: AlertsListProps) {
-  const getIcon = (type: string) => {
-    switch (type) {
-      case "urgent": return <AlertCircle className="w-5 h-5 text-opti-red" />;
-      case "maintenance": return <AlertTriangle className="w-5 h-5 text-amber-500" />;
-      case "info": return <Info className="w-5 h-5 text-blue-500" />;
-      default: return <Info className="w-5 h-5 text-slate-500" />;
-    }
-  };
-
-  const getLabel = (type: string) => {
-    switch (type) {
-      case "urgent": return <span className="text-[10px] font-bold text-opti-red uppercase tracking-wider">Urgent</span>;
-      case "maintenance": return <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Maintenance</span>;
-      case "info": return <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">Info</span>;
-      default: return null;
-    }
-  };
-
-  // Rendu d'une alerte "générique" (compat. ascendante, sans champ trafic).
-  const renderGenericAlert = (alert: AlertData) => (
+// Contenu d'une alerte "générique" (compat. ascendante, sans champ trafic).
+function GenericAlertContent({ alert }: { alert: AlertData }) {
+  return (
     <>
-      <div className="shrink-0 mt-1.5 flex justify-center w-6">
-        {getIcon(alert.type)}
-      </div>
+      <div className="shrink-0 mt-1.5 flex justify-center w-6">{getGenericIcon(alert.type)}</div>
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline mb-0.5">
-          {getLabel(alert.type)}
+          {getGenericLabel(alert.type)}
           <span className="text-[10px] text-slate-400 shrink-0 ml-2 font-medium">{alert.time}</span>
         </div>
         <h4 className="text-sm font-bold text-opti-blue truncate my-0.5">{alert.title}</h4>
@@ -126,7 +131,87 @@ export default function AlertsList({ alerts, isLoading, error }: AlertsListProps
       </div>
     </>
   );
+}
 
+// Une "diapo" du carrousel, à hauteur fixe.
+function AlertSlide({ alert }: { alert: AlertData }) {
+  return (
+    <div
+      className="flex gap-3 pt-1 overflow-hidden border-b border-gray-50"
+      style={{ height: SLIDE_HEIGHT }}
+    >
+      {alert.kind ? <TrafficAlertContent alert={alert} /> : <GenericAlertContent alert={alert} />}
+    </div>
+  );
+}
+
+// Carrousel vertical auto-défilant : avance d'un cran toutes les ROTATE_INTERVAL ms,
+// en boucle fluide (clones des premières diapos en fin de liste), pause au survol.
+function AlertsCarousel({ alerts }: { alerts: AlertData[] }) {
+  const loopable = alerts.length > VISIBLE_SLIDES;
+  const [index, setIndex] = useState(0);
+  const [animate, setAnimate] = useState(true);
+  const pausedRef = useRef(false);
+
+  // Avance automatique
+  useEffect(() => {
+    if (!loopable) return;
+    const id = setInterval(() => {
+      if (!pausedRef.current) setIndex((i) => i + 1);
+    }, ROTATE_INTERVAL);
+    return () => clearInterval(id);
+  }, [loopable]);
+
+  // Réactive l'animation juste après un saut "sans transition" (retour au début)
+  useEffect(() => {
+    if (animate) return;
+    const raf = requestAnimationFrame(() => setAnimate(true));
+    return () => cancelAnimationFrame(raf);
+  }, [animate]);
+
+  // Quand on atteint les clones de fin, on resnappe au début sans animation
+  const handleTransitionEnd = () => {
+    if (index >= alerts.length) {
+      setAnimate(false);
+      setIndex(0);
+    }
+  };
+
+  if (!loopable) {
+    return (
+      <div>
+        {alerts.map((alert) => (
+          <AlertSlide key={alert.id} alert={alert} />
+        ))}
+      </div>
+    );
+  }
+
+  const slides = [...alerts, ...alerts.slice(0, VISIBLE_SLIDES)];
+
+  return (
+    <div
+      className="overflow-hidden"
+      style={{ height: VISIBLE_SLIDES * SLIDE_HEIGHT }}
+      onMouseEnter={() => (pausedRef.current = true)}
+      onMouseLeave={() => (pausedRef.current = false)}
+    >
+      <div
+        style={{
+          transform: `translateY(-${index * SLIDE_HEIGHT}px)`,
+          transition: animate ? `transform ${TRANSITION_MS}ms ease-in-out` : "none",
+        }}
+        onTransitionEnd={handleTransitionEnd}
+      >
+        {slides.map((alert, i) => (
+          <AlertSlide key={`${alert.id}-${i}`} alert={alert} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function AlertsList({ alerts, isLoading, error }: AlertsListProps) {
   const renderBody = () => {
     if (isLoading && alerts.length === 0) {
       return (
@@ -154,17 +239,14 @@ export default function AlertsList({ alerts, isLoading, error }: AlertsListProps
       );
     }
 
-    return alerts.map((alert) => (
-      <div key={alert.id} className="flex gap-3 pb-4 border-b border-gray-50 last:border-0 last:pb-0">
-        {alert.kind ? renderTrafficAlert(alert) : renderGenericAlert(alert)}
-      </div>
-    ));
+    // key sur le nombre d'alertes => remontage propre (reset) si la liste change de taille.
+    return <AlertsCarousel key={alerts.length} alerts={alerts} />;
   };
 
   return (
     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-full">
       <h3 className="text-xl font-bold text-opti-blue mb-4 font-display">Alertes & Notifications</h3>
-      <div className="space-y-4 flex-1 max-h-[300px] overflow-y-auto pr-1">{renderBody()}</div>
+      <div className="flex-1">{renderBody()}</div>
     </div>
   );
 }
