@@ -111,14 +111,19 @@ export default function GenerateTourneeButton() {
       const sessionDateStr = session.meta.date || new Date().toISOString().split('T')[0];
       const sessionStartStr = session.meta.start_time || "08:00";
 
-      // 1. RÈGLE DES 11 HEURES
+      // 1. GESTION DES INCIDENTS (CHEVAUCHEMENT HORAIRE)
       const allDailyIncidents = await getIncidentsForDate(sessionDateStr);
       const sessionStartSec = timeToSeconds(sessionStartStr);
-      const sessionEndSec = sessionStartSec + (11 * 3600); 
+      const sessionEndSec = sessionStartSec + (11 * 3600); // Fin théorique (Départ + 11h)
 
       const relevantIncidents = allDailyIncidents.filter(inc => {
-        const incSec = timeToSeconds(inc.time);
-        return incSec <= sessionEndSec;
+        const incStartSec = timeToSeconds(inc.time);
+        // Si l'heure de fin n'était pas renseignée par le passé, on met 23:59 par défaut
+        const incEndSec = timeToSeconds(inc.endTime || "23:59"); 
+        
+        // Il y a chevauchement si l'incident commence avant la fin de la tournée, 
+        // ET que l'incident se termine après le début de la tournée.
+        return (sessionStartSec <= incEndSec) && (sessionEndSec >= incStartSec);
       });
       
       // 2. Vérification du Cache
