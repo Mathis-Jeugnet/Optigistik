@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, useMap, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-routing-machine";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import { geocodeAddress } from "@/services/geocoding";
+import { KIND_LABEL, incidentMeta, type TrafficIncident, type TrafficKind, type TrafficSeverity } from "@/services/traffic";
+import { TrafficCone } from "lucide-react";
 
 const DefaultIcon = L.icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -112,10 +114,82 @@ function RecenterButton({ position }: { position: L.LatLngExpression }) {
   );
 }
 
-export default function DynamicMap({ isFullScreen, activeSessions = [] }: { isFullScreen?: boolean; activeSessions?: any[] }) {
+// --- Marqueurs trafic (incidents Bison Futé) ---
+
+const TRAFFIC_SEVERITY_COLOR: Record<TrafficSeverity, string> = {
+  highest: "#dc2626",
+  high: "#ef4444",
+  medium: "#f59e0b",
+  low: "#3b82f6",
+  unknown: "#64748b",
+};
+
+const TRAFFIC_KIND_EMOJI: Record<TrafficKind, string> = {
+  accident: "⚠️",
+  bouchon: "🚗",
+  travaux: "🚧",
+  fermeture: "⛔",
+  info: "ℹ️",
+};
+
+function trafficDivIcon(incident: TrafficIncident) {
+  const color = TRAFFIC_SEVERITY_COLOR[incident.severity];
+  const emoji = TRAFFIC_KIND_EMOJI[incident.kind];
+  return L.divIcon({
+    className: "traffic-icon",
+    html: `<div style="background:${color}; width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.35);">${emoji}</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+    popupAnchor: [0, -14],
+  });
+}
+
+function formatPopupTime(iso: string | null): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function TrafficMarkers({ incidents }: { incidents: TrafficIncident[] }) {
+  return (
+    <>
+      {incidents
+        .filter((i) => i.coordinates)
+        .map((i) => {
+          const meta = incidentMeta(i);
+          const start = formatPopupTime(i.startTime);
+          return (
+            <Marker key={i.id} position={[i.coordinates!.lat, i.coordinates!.lon]} icon={trafficDivIcon(i)}>
+              <Popup>
+                <div className="text-slate-700">
+                  <div className="font-bold text-opti-blue">
+                    {KIND_LABEL[i.kind]}
+                    {i.road ? ` — ${i.road}` : ""}
+                  </div>
+                  {i.town && <div className="text-xs">{i.town}</div>}
+                  {meta && <div className="text-xs text-slate-500">{meta}</div>}
+                  <div className="text-xs mt-1">{i.location}</div>
+                  {start && <div className="text-[11px] text-slate-400 mt-1">Depuis le {start}</div>}
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
+    </>
+  );
+}
+
+export default function DynamicMap({ isFullScreen, activeSessions = [], trafficIncidents = [] }: { isFullScreen?: boolean; activeSessions?: any[]; trafficIncidents?: TrafficIncident[] }) {
   const [selectedSessionId, setSelectedSessionId] = useState<string>("all");
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("all");
   const [routesToRender, setRoutesToRender] = useState<any[]>([]);
+  const [showTraffic, setShowTraffic] = useState(true); // calque infos routières (incidents Bison Futé)
   
   const centerPosition: L.LatLngExpression = [46.2276, 2.2137];
   const colors = ["#0ea5e9", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
@@ -234,7 +308,20 @@ export default function DynamicMap({ isFullScreen, activeSessions = [] }: { isFu
       
       {/* Panneaux de filtres sur la carte */}
       <div className="absolute top-4 left-16 z-[1000] bg-white rounded-lg shadow-md border border-gray-200 flex flex-col sm:flex-row divide-y sm:divide-y-0 sm:divide-x divide-gray-100 overflow-hidden">
-        
+
+        {/* Calque "Infos routières" : afficher/masquer les incidents trafic pour bien voir les tournées */}
+        <button
+          onClick={() => setShowTraffic((v) => !v)}
+          title={showTraffic ? "Masquer les infos routières" : "Afficher les infos routières"}
+          aria-pressed={showTraffic}
+          className={`flex items-center gap-2 text-xs font-bold p-2.5 outline-none cursor-pointer transition-colors ${
+            showTraffic ? "text-amber-600 bg-amber-50/70 hover:bg-amber-50" : "text-slate-400 hover:bg-gray-50"
+          }`}
+        >
+          <TrafficCone className="w-4 h-4 shrink-0" />
+          Infos routières
+        </button>
+
         {/* On ne montre le sélecteur de "Tournée" QUE s'il y a plus d'une tournée cochée dans le menu parent */}
         {activeSessions.length > 1 && (
           <select 
@@ -266,6 +353,8 @@ export default function DynamicMap({ isFullScreen, activeSessions = [] }: { isFu
       </div>
 
       {routesToRender.map((r) => <Routing key={r.id} {...r} />)}
+
+      {showTraffic && <TrafficMarkers incidents={trafficIncidents} />}
     </MapContainer>
   );
 }

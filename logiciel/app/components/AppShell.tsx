@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../context/AuthContext'
 import { Menu } from 'lucide-react'
 import Sidebar from './Sidebar'
+import { MessagingProvider } from '../context/MessagingContext'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -17,6 +18,13 @@ export default function AppShell({ children }: AppShellProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const router = useRouter()
 
+  // Déconnecté sur une page protégée (ex : accès direct à /tournees ou session
+  // expirée) → redirection vers la page de connexion, quelle que soit l'URL.
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/')
+    }
+  }, [user, loading, router])
 
   if (loading) {
     return (
@@ -29,6 +37,7 @@ export default function AppShell({ children }: AppShellProps) {
   if (!user) return null
 
   return (
+    <MessagingProvider>
     <div className="flex min-h-screen bg-white font-sans">
       {/* Mobile backdrop */}
       {isMobileOpen && (
@@ -78,5 +87,6 @@ export default function AppShell({ children }: AppShellProps) {
         </main>
       </div>
     </div>
+    </MessagingProvider>
   )
 }

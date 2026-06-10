@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
-import { sendTempPasswordEmail } from '@/utils/mailer';
+import { sendTempPasswordEmail, sendAppTempPasswordEmail } from '@/utils/mailer';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,8 +81,14 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. Génération automatique du mot de passe temporaire
+    // 2. Génération automatique du mot de passe temporaire pour le logiciel
     const tempPassword = generateSecureTempPassword();
+    
+    // Génération automatique du mot de passe temporaire pour l'app
+    let tempAppPassword = "";
+    if (role === 'Chauffeur') {
+      tempAppPassword = generateSecureTempPassword();
+    }
 
     // 3. Création de l'utilisateur dans Firebase Auth
     const userRecord = await adminAuth.createUser({
@@ -125,12 +131,21 @@ export async function POST(request: Request) {
         seniority: driverConfig.seniority || new Date().toISOString(),
         languages: driverConfig.languages ? driverConfig.languages.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
         unavailabilities: [],
-        assignedVehicles: []
+        assignedVehicles: [],
+        tempAppPassword // Stockage du mdp temporaire de l'application
       });
     }
 
-    // 7. Envoi de l'email contenant le mot de passe temporaire
-    await sendTempPasswordEmail(email, name, tempPassword, role);
+    // 7. Envoi des emails de bienvenue en arrière-plan sans bloquer la réponse de l'API
+    sendTempPasswordEmail(email, name, tempPassword, role).catch(err => {
+      console.error("[MAILER ERROR] Échec de l'envoi de l'email Logiciel:", err);
+    });
+
+    if (role === 'Chauffeur' && tempAppPassword) {
+      sendAppTempPasswordEmail(email, name, tempAppPassword).catch(err => {
+        console.error("[MAILER ERROR] Échec de l'envoi de l'email App Chauffeur:", err);
+      });
+    }
 
     return NextResponse.json({ 
       success: true, 

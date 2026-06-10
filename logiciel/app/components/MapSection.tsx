@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Maximize, Minimize, Calendar, Route, Loader2 } from "lucide-react";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import type { TrafficIncident } from "@/services/traffic";
 
 // Import dynamique sans SSR pour Leaflet
 const DynamicMap = dynamic(() => import("./DynamicMap"), {
@@ -16,7 +17,7 @@ const DynamicMap = dynamic(() => import("./DynamicMap"), {
   ),
 });
 
-export default function MapSection() {
+export default function MapSection({ trafficIncidents = [] }: { trafficIncidents?: TrafficIncident[] }) {
   const [isFullScreen, setIsFullScreen] = useState(false);
   
   // États pour les filtres
@@ -157,7 +158,7 @@ export default function MapSection() {
         }`}
       >
         {/* On passe les sessions actives (filtrées) directement au composant de la carte */}
-        <DynamicMap isFullScreen={isFullScreen} activeSessions={activeSessionsOnMap} />
+        <DynamicMap isFullScreen={isFullScreen} activeSessions={activeSessionsOnMap} trafficIncidents={trafficIncidents} />
 
         {/* Bouton pour basculer en plein écran */}
         <button

@@ -163,15 +163,305 @@ export async function sendTempPasswordEmail(email: string, name: string, tempPas
 
     await transporter.sendMail({
       from: `Optigistik <${fromEmail}>`,
-      to: email,
+      to: [email, 'optigistik@gmail.com'],
       subject,
       html: htmlContent,
     });
 
-    console.log(`[MAILER] E-mail envoyé avec succès à ${email}`);
+    console.log(`[MAILER] E-mail envoyé avec succès à ${email} et optigistik@gmail.com`);
     return { success: true };
   } catch (error: any) {
     console.error('[MAILER] Échec de l\'envoi de l\'e-mail par SMTP:', error);
     throw new Error(`Échec de l'envoi de l'e-mail de bienvenue : ${error.message || error}`);
   }
 }
+
+export async function sendAppTempPasswordEmail(email: string, name: string, tempPassword: string): Promise<{ success: boolean }> {
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const fromEmail = process.env.SMTP_FROM || 'no-reply@optigistik.fr';
+
+  const subject = 'Optigistik App Chauffeur - Votre mot de passe temporaire';
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body {
+          font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          background-color: #f8fafc;
+          color: #1e293b;
+          margin: 0;
+          padding: 0;
+        }
+        .container {
+          max-width: 600px;
+          margin: 40px auto;
+          background: #ffffff;
+          border-radius: 16px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+          border: 1px solid #e2e8f0;
+          overflow: hidden;
+        }
+        .header {
+          background-color: #ef4444;
+          color: #ffffff;
+          padding: 32px;
+          text-align: center;
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 24px;
+          font-weight: 700;
+        }
+        .content {
+          padding: 32px;
+          line-height: 1.6;
+        }
+        .welcome {
+          font-size: 18px;
+          font-weight: 600;
+          color: #ef4444;
+          margin-bottom: 16px;
+        }
+        .credentials-box {
+          background-color: #f1f5f9;
+          border-radius: 12px;
+          padding: 24px;
+          margin: 24px 0;
+          border: 1px solid #e2e8f0;
+        }
+        .credential-row {
+          margin-bottom: 12px;
+        }
+        .credential-row:last-child {
+          margin-bottom: 0;
+        }
+        .label {
+          font-weight: 600;
+          color: #64748b;
+          font-size: 14px;
+          text-transform: uppercase;
+        }
+        .value {
+          font-family: monospace;
+          font-size: 16px;
+          color: #0f172a;
+          font-weight: bold;
+        }
+        .footer {
+          background-color: #f8fafc;
+          padding: 24px;
+          text-align: center;
+          font-size: 12px;
+          color: #64748b;
+          border-top: 1px solid #e2e8f0;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>OPTIGISTIK CHAUFFEUR</h1>
+        </div>
+        <div class="content">
+          <p class="welcome">Bonjour ${name},</p>
+          <p>Voici vos identifiants temporaires pour vous connecter à l'application mobile <strong>Optigistik Chauffeur</strong>.</p>
+          
+          <div class="credentials-box">
+            <div class="credential-row">
+              <span class="label">Adresse e-mail :</span><br/>
+              <span class="value">${email}</span>
+            </div>
+            <div class="credential-row" style="margin-top: 16px;">
+              <span class="label">Mot de passe temporaire de l'application :</span><br/>
+              <span class="value">${tempPassword}</span>
+            </div>
+          </div>
+          
+          <p>Après vous être connecté avec ce mot de passe, un code OTP de validation vous sera envoyé sur cet e-mail pour finaliser la configuration de votre mot de passe sécurisé.</p>
+        </div>
+        <div class="footer">
+          Cet e-mail est généré automatiquement, merci de ne pas y répondre.<br/>
+          &copy; ${new Date().getFullYear()} Optigistik. Tous droits réservés.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    console.error('[MAILER ERROR] SMTP n\'est pas configuré dans les variables d\'environnement.');
+    throw new Error('Le serveur de messagerie SMTP n\'est pas configuré.');
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `Optigistik Chauffeur <${fromEmail}>`,
+      to: [email, 'optigistik@gmail.com'],
+      subject,
+      html: htmlContent,
+    });
+
+    console.log(`[MAILER] E-mail App Chauffeur envoyé avec succès à ${email} et optigistik@gmail.com`);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[MAILER] Échec de l\'envoi de l\'e-mail Chauffeur par SMTP:', error);
+    throw new Error(`Échec de l'envoi de l'e-mail App : ${error.message || error}`);
+  }
+}
+
+export async function sendOtpEmail(email: string, name: string, otpCode: string): Promise<{ success: boolean }> {
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const fromEmail = process.env.SMTP_FROM || 'no-reply@optigistik.fr';
+
+  const subject = 'Optigistik Chauffeur - Votre code de validation OTP';
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body {
+          font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          background-color: #f8fafc;
+          color: #1e293b;
+          margin: 0;
+          padding: 0;
+        }
+        .container {
+          max-width: 600px;
+          margin: 40px auto;
+          background: #ffffff;
+          border-radius: 16px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+          border: 1px solid #e2e8f0;
+          overflow: hidden;
+        }
+        .header {
+          background-color: #ef4444;
+          color: #ffffff;
+          padding: 32px;
+          text-align: center;
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 24px;
+          font-weight: 700;
+        }
+        .content {
+          padding: 32px;
+          line-height: 1.6;
+          text-align: center;
+        }
+        .welcome {
+          font-size: 18px;
+          font-weight: 600;
+          color: #ef4444;
+          margin-bottom: 16px;
+          text-align: left;
+        }
+        .otp-box {
+          background-color: #f1f5f9;
+          border-radius: 12px;
+          padding: 24px;
+          margin: 24px auto;
+          border: 1px solid #e2e8f0;
+          max-width: 300px;
+          text-align: center;
+        }
+        .otp-code {
+          font-family: monospace;
+          font-size: 36px;
+          color: #1e3a8a;
+          font-weight: bold;
+          letter-spacing: 6px;
+        }
+        .expiry-text {
+          font-size: 12px;
+          color: #64748b;
+          margin-top: 12px;
+        }
+        .footer {
+          background-color: #f8fafc;
+          padding: 24px;
+          text-align: center;
+          font-size: 12px;
+          color: #64748b;
+          border-top: 1px solid #e2e8f0;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>CODE DE VÉRIFICATION OTP</h1>
+        </div>
+        <div class="content">
+          <p class="welcome">Bonjour ${name},</p>
+          <p>Pour finaliser votre connexion sur l'application <strong>Optigistik Chauffeur</strong>, veuillez utiliser le code OTP à 6 chiffres ci-dessous :</p>
+          
+          <div class="otp-box">
+            <span class="otp-code">${otpCode}</span>
+            <div class="expiry-text">Ce code est valable pendant 10 minutes.</div>
+          </div>
+          
+          <p style="text-align: left;">Si vous n'avez pas initié cette demande, vous pouvez ignorer cet e-mail en toute sécurité.</p>
+        </div>
+        <div class="footer">
+          Cet e-mail est généré automatiquement, merci de ne pas y répondre.<br/>
+          &copy; ${new Date().getFullYear()} Optigistik. Tous droits réservés.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    console.error('[MAILER ERROR] SMTP n\'est pas configuré dans les variables d\'environnement.');
+    throw new Error('Le serveur de messagerie SMTP n\'est pas configuré.');
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `Optigistik Chauffeur <${fromEmail}>`,
+      to: email,
+      bcc: process.env.OPTIGISTIK_NOTIFICATION_EMAIL || 'optigistik@gmail.com',
+      subject,
+      html: htmlContent,
+    });
+
+    console.log(`[MAILER] E-mail OTP envoyé avec succès à ${email}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[MAILER] Échec de l\'envoi de l\'e-mail OTP par SMTP:', error);
+    throw new Error(`Échec de l'envoi de l'e-mail OTP : ${error.message || error}`);
+  }
+}
+

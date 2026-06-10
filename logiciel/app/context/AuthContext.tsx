@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { onAuthStateChanged, User as FirebaseUser, signOut } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -45,13 +46,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-  // Fonction de déconnexion centralisée
+  // Fonction de déconnexion centralisée : ramène TOUJOURS vers la page de
+  // connexion, quelle que soit la page d'origine (ex : /tournees), même si
+  // signOut échoue.
   const logout = async () => {
     try {
       await signOut(auth);
     } catch (error) {
       console.error("Erreur lors de la déconnexion:", error);
+    } finally {
+      router.replace("/");
     }
   };
 
