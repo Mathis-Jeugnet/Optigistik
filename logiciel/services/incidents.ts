@@ -10,11 +10,10 @@ export interface TrafficIncident {
   type: 'BLOCKAGE' | 'SLOWDOWN';
   date: string; // Format YYYY-MM-DD
   time: string; // Heure de début (HH:MM)
-  endTime: string; // Heure de fin (HH:MM)
+  endTime: string; // NOUVEAU : Heure de fin (HH:MM)
   createdAt: string;
 }
 
-// Ajouter un incident globalement
 export async function addGlobalIncident(incident: Omit<TrafficIncident, 'id' | 'createdAt'>): Promise<TrafficIncident> {
   const id = crypto.randomUUID();
   const newIncident: TrafficIncident = {
@@ -27,7 +26,6 @@ export async function addGlobalIncident(incident: Omit<TrafficIncident, 'id' | '
   return newIncident;
 }
 
-// Récupérer les incidents pour une date précise
 export async function getIncidentsForDate(dateStr: string): Promise<TrafficIncident[]> {
   const q = query(
     collection(db, 'traffic_incidents'), 
@@ -40,7 +38,6 @@ export async function getIncidentsForDate(dateStr: string): Promise<TrafficIncid
   return incidents.sort((a, b) => a.time.localeCompare(b.time));
 }
 
-// Supprimer un incident
 export async function removeGlobalIncident(id: string): Promise<void> {
   await deleteDoc(doc(db, 'traffic_incidents', id));
 }

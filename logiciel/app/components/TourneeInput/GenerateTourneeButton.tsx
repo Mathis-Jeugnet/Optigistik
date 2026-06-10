@@ -107,26 +107,22 @@ export default function GenerateTourneeButton() {
     setSolverMessage(null)
 
     try {
-      // CORRECTION TYPESCRIPT : Fallbacks pour s'assurer que les dates et heures sont des chaînes
       const sessionDateStr = session.meta.date || new Date().toISOString().split('T')[0];
       const sessionStartStr = session.meta.start_time || "08:00";
 
-      // 1. GESTION DES INCIDENTS (CHEVAUCHEMENT HORAIRE)
+      // 1. RÈGLE DU CHEVAUCHEMENT (OVERLAP)
       const allDailyIncidents = await getIncidentsForDate(sessionDateStr);
       const sessionStartSec = timeToSeconds(sessionStartStr);
-      const sessionEndSec = sessionStartSec + (11 * 3600); // Fin théorique (Départ + 11h)
+      const sessionEndSec = sessionStartSec + (11 * 3600); // Fin de tournée estimée
 
       const relevantIncidents = allDailyIncidents.filter(inc => {
         const incStartSec = timeToSeconds(inc.time);
-        // Si l'heure de fin n'était pas renseignée par le passé, on met 23:59 par défaut
         const incEndSec = timeToSeconds(inc.endTime || "23:59"); 
         
-        // Il y a chevauchement si l'incident commence avant la fin de la tournée, 
-        // ET que l'incident se termine après le début de la tournée.
+        // Formule mathématique du chevauchement : DébutA <= FinB ET FinA >= DébutB
         return (sessionStartSec <= incEndSec) && (sessionEndSec >= incStartSec);
       });
       
-      // 2. Vérification du Cache
       const currentSignature = generateSessionSignature(session, relevantIncidents);
 
       if (localCache?.signature === currentSignature) {
