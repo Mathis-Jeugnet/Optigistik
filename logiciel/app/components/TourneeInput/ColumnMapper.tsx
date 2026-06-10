@@ -16,11 +16,13 @@ const FIELDS: { key: keyof ColumnMapping; label: string; required: boolean }[] =
   { key: 'unloading_time', label: 'Temps déchargement client (min)', required: false },
   { key: 'window_start', label: 'Fenêtre horaire — début (HH:mm)', required: false },
   { key: 'window_end', label: 'Fenêtre horaire — fin (HH:mm)', required: false },
+  { key: 'vehicle_type', label: 'Typologie de camion', required: false },
+  { key: 'required_skill', label: 'Équipement requis', required: false },
 ]
 
 export default function ColumnMapper({ columns, onConfirm, onCancel }: ColumnMapperProps) {
   const [mapping, setMapping] = useState<ColumnMapping>(() => {
-    const initial: ColumnMapping = { address: '', pallets: '', loading_time: '', unloading_time: '', window_start: '', window_end: '' }
+    const initial: ColumnMapping = { address: '', pallets: '', loading_time: '', unloading_time: '', window_start: '', window_end: '', vehicle_type: '', required_skill: '' }
     for (const col of columns) {
       const lower = col.toLowerCase()
       if (!initial.address && /adresse|address/.test(lower)) initial.address = col
@@ -29,6 +31,8 @@ export default function ColumnMapper({ columns, onConfirm, onCancel }: ColumnMap
       if (!initial.unloading_time && /décharg|decharg|unload/.test(lower)) initial.unloading_time = col
       if (!initial.window_start && /(début|debut|start|ouvert)/.test(lower)) initial.window_start = col
       if (!initial.window_end && /(fin|end|fermet)/.test(lower)) initial.window_end = col
+      if (!initial.vehicle_type && /typolog|type.camion|vehicle.type/.test(lower)) initial.vehicle_type = col
+      if (!initial.required_skill && /équipement|equipement|skill|compét|competence/.test(lower)) initial.required_skill = col
     }
     return initial
   })

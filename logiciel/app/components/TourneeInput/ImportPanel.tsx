@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -11,6 +11,8 @@ import { parseCSV, mapColumnsToDeliveryPoints } from '@/utils/csvParser'
 import { parseExcel } from '@/utils/excelParser'
 import ColumnMapper from './ColumnMapper'
 import type { ColumnMapping } from '@/types/logistics'
+import { getVehicleTypes, getSpecialties } from '@/services/fleet'
+import type { VehicleType, Specialty } from '@/services/fleet'
 
 const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/
 
@@ -22,12 +24,14 @@ const manualSchema = z.object({
   window_start: z.string().regex(TIME_REGEX, 'Format HH:mm requis'),
   window_end: z.string().regex(TIME_REGEX, 'Format HH:mm requis'),
   notes: z.string().optional(),
+  allowed_vehicle_type: z.string().optional(),
+  required_skill: z.string().optional(),
 })
 
 type ManualFormValues = z.infer<typeof manualSchema>
 
 function autoDetectMapping(columns: string[]): ColumnMapping | null {
-  const m: ColumnMapping = { address: '', pallets: '', loading_time: '', unloading_time: '', window_start: '', window_end: '' }
+  const m: ColumnMapping = { address: '', pallets: '', loading_time: '', unloading_time: '', window_start: '', window_end: '', vehicle_type: '', required_skill: '' }
   for (const col of columns) {
     const lower = col.toLowerCase()
     if (!m.address && /adresse|address/.test(lower)) m.address = col
@@ -36,6 +40,8 @@ function autoDetectMapping(columns: string[]): ColumnMapping | null {
     if (!m.unloading_time && /décharg|decharg|unload/.test(lower)) m.unloading_time = col
     if (!m.window_start && /(début|debut|start|ouvert)/.test(lower)) m.window_start = col
     if (!m.window_end && /(fin|end|fermet)/.test(lower)) m.window_end = col
+    if (!m.vehicle_type && /typolog|type.camion|vehicle.type/.test(lower)) m.vehicle_type = col
+    if (!m.required_skill && /équipement|equipement|skill|compét|competence/.test(lower)) m.required_skill = col
   }
   return m.address && m.pallets ? m : null
 }
@@ -104,6 +110,13 @@ export default function ImportPanel() {
   const [showManual, setShowManual] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [importSuccess, setImportSuccess] = useState<string | null>(null)
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([])
+  const [specialties, setSpecialties] = useState<Specialty[]>([])
+
+  useEffect(() => {
+    getVehicleTypes().then(setVehicleTypes)
+    getSpecialties().then(setSpecialties)
+  }, [])
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ManualFormValues>({
     resolver: zodResolver(manualSchema),
@@ -140,11 +153,15 @@ export default function ImportPanel() {
 
   const onManualSubmit = (values: ManualFormValues) => {
     addDeliveryPoints([{
-      id: crypto.randomUUID(), address: values.address,
-      pallets: values.pallets, loading_time_at_depot: values.loading_time_at_depot,
+      id: crypto.randomUUID(),
+      address: values.address,
+      pallets: values.pallets,
+      loading_time_at_depot: values.loading_time_at_depot,
       unloading_time_at_client: values.unloading_time_at_client,
       time_window: { start: values.window_start, end: values.window_end },
       notes: values.notes,
+      allowed_vehicle_types: values.allowed_vehicle_type ? [values.allowed_vehicle_type] : null,
+      required_skills: values.required_skill ? [values.required_skill] : null,
     }])
     reset(); setShowManual(false)
     setImportSuccess('Point ajouté avec succès.')
@@ -235,6 +252,36 @@ export default function ImportPanel() {
                 <label htmlFor="m-wend" className={labelClass}>Fenêtre — fin</label>
                 <input id="m-wend" aria-label="Fin de la fenêtre horaire" placeholder="18:00" {...register('window_end')} className={inputClass} />
                 {errors.window_end && <p className={errorClass}>{errors.window_end.message}</p>}
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="m-vehicle-type" className={labelClass}>Typologie de camion</label>
+                <select
+                  id="m-vehicle-type"
+                  aria-label="Typologie de camion requise"
+                  {...register('allowed_vehicle_type')}
+                  className={inputClass}
+                >
+                  <option value="">— Aucune contrainte —</option>
+                  {vehicleTypes.map((vt) => (
+                    <option key={vt.id} value={vt.id}>{vt.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="m-skill" className={labelClass}>Équipement requis</label>
+                <select
+                  id="m-skill"
+                  aria-label="Équipement requis"
+                  {...register('required_skill')}
+                  className={inputClass}
+                >
+                  <option value="">— Aucun équipement —</option>
+                  {specialties.map((sp) => (
+                    <option key={sp.id} value={sp.name}>{sp.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="md:col-span-2 space-y-1.5">

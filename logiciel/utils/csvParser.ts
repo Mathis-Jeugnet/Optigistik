@@ -23,15 +23,21 @@ export function mapColumnsToDeliveryPoints(
 ): DeliveryPoint[] {
   return rows
     .filter((row) => row[mapping.address]?.trim())
-    .map((row) => ({
-      id: crypto.randomUUID(),
-      address: row[mapping.address].trim(),
-      pallets: safeInt(row[mapping.pallets], 1),
-      loading_time_at_depot: safeInt(row[mapping.loading_time], 15),
-      unloading_time_at_client: safeInt(row[mapping.unloading_time], 30),
-      time_window: {
-        start: row[mapping.window_start]?.trim() || '08:00',
-        end: row[mapping.window_end]?.trim() || '18:00',
-      },
-    }))
+    .map((row) => {
+      const vehicleType = mapping.vehicle_type ? row[mapping.vehicle_type]?.trim() : ''
+      const skill = mapping.required_skill ? row[mapping.required_skill]?.trim() : ''
+      return {
+        id: crypto.randomUUID(),
+        address: row[mapping.address].trim(),
+        pallets: safeInt(row[mapping.pallets], 1),
+        loading_time_at_depot: safeInt(row[mapping.loading_time], 15),
+        unloading_time_at_client: safeInt(row[mapping.unloading_time], 30),
+        time_window: {
+          start: row[mapping.window_start]?.trim() || '08:00',
+          end: row[mapping.window_end]?.trim() || '18:00',
+        },
+        allowed_vehicle_types: vehicleType ? [vehicleType] : null,
+        required_skills: skill ? [skill] : null,
+      }
+    })
 }

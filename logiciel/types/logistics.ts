@@ -59,4 +59,6 @@ export interface ColumnMapping {
   unloading_time: string
   window_start: string
   window_end: string
+  vehicle_type: string
+  required_skill: string
 }
