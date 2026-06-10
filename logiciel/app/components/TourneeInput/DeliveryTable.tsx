@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useReactTable, getCoreRowModel, getPaginationRowModel, flexRender, createColumnHelper } from '@tanstack/react-table'
 import { useDeliveryStore } from '@/stores/deliveryStore'
 import AddressCell from './AddressCell'
 import type { DeliveryPoint } from '@/types/logistics'
+import { getVehicleTypes, getSpecialties, VehicleType, Specialty } from '@/services/fleet'
 
 function PencilIcon() {
   return (
@@ -77,6 +78,17 @@ export default function DeliveryTable() {
   const removeDeliveryPoint = useDeliveryStore((s) => s.removeDeliveryPoint)
   const [editingRowId, setEditingRowId] = useState<string | null>(null)
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null)
+  
+  // États pour les options des flottes
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([])
+  const [specialties, setSpecialties] = useState<Specialty[]>([])
+
+  useEffect(() => {
+    Promise.all([getVehicleTypes(), getSpecialties()]).then(([types, specs]) => {
+      setVehicleTypes(types)
+      setSpecialties(specs)
+    })
+  }, [])
 
   const startRowEdit = (id: string) => { setEditingRowId(id); setEditingAddressId(id) }
   const stopRowEdit = () => { setEditingRowId(null); setEditingAddressId(null) }
@@ -88,6 +100,7 @@ export default function DeliveryTable() {
   const columns = [
     col.accessor('address', {
       header: 'Adresse',
+      size: 250,
       cell: ({ row }) => {
         const id = row.original.id
         if (editingAddressId === id) {
@@ -116,28 +129,10 @@ export default function DeliveryTable() {
           onSave={(v) => updateDeliveryPoint(row.original.id, { pallets: Math.max(1, Math.round(Number(v))) })} />
       ),
     }),
-    col.accessor('loading_time_at_depot', {
-      header: 'Chgt dépôt (min)',
-      size: 120,
-      cell: ({ row }) => (
-        <EditableCell value={row.original.loading_time_at_depot} type="number"
-          forceEdit={editingRowId === row.original.id}
-          onSave={(v) => updateDeliveryPoint(row.original.id, { loading_time_at_depot: Math.max(1, Math.round(Number(v))) })} />
-      ),
-    }),
-    col.accessor('unloading_time_at_client', {
-      header: 'Décht client (min)',
-      size: 120,
-      cell: ({ row }) => (
-        <EditableCell value={row.original.unloading_time_at_client} type="number"
-          forceEdit={editingRowId === row.original.id}
-          onSave={(v) => updateDeliveryPoint(row.original.id, { unloading_time_at_client: Math.max(1, Math.round(Number(v))) })} />
-      ),
-    }),
     col.display({
       id: 'time_window',
-      header: 'Fenêtre horaire',
-      size: 150,
+      header: 'Horaires',
+      size: 130,
       cell: ({ row }) => (
         <div className="flex items-center gap-1 text-sm">
           <EditableCell value={row.original.time_window.start} type="time"
@@ -149,6 +144,106 @@ export default function DeliveryTable() {
             onSave={(v) => updateDeliveryPoint(row.original.id, { time_window: { ...row.original.time_window, end: v } })} />
         </div>
       ),
+    }),
+    col.display({
+      id: 'temps_service',
+      header: 'Tps (Chgt/Décht)',
+      size: 110,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1 text-sm text-slate-500">
+          <EditableCell value={row.original.loading_time_at_depot} type="number"
+            forceEdit={editingRowId === row.original.id}
+            onSave={(v) => updateDeliveryPoint(row.original.id, { loading_time_at_depot: Math.max(1, Math.round(Number(v))) })} />
+          <span>/</span>
+          <EditableCell value={row.original.unloading_time_at_client} type="number"
+            forceEdit={editingRowId === row.original.id}
+            onSave={(v) => updateDeliveryPoint(row.original.id, { unloading_time_at_client: Math.max(1, Math.round(Number(v))) })} />
+        </div>
+      ),
+    }),
+    // NOUVELLE COLONNE : Typologie de camion
+    col.display({
+      id: 'vehicle_constraints',
+      header: 'Typologie de camion',
+      size: 150,
+      cell: ({ row }) => {
+        const isEditing = editingRowId === row.original.id;
+        const currentTypeId = row.original.allowed_vehicle_types?.[0] || '';
+
+        if (isEditing) {
+          return (
+            <select
+              value={currentTypeId}
+              onChange={(e) => {
+                const val = e.target.value;
+                updateDeliveryPoint(row.original.id, { allowed_vehicle_types: val ? [val] : [] })
+              }}
+              className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-opti-blue focus:outline-none focus:border-opti-red bg-white"
+            >
+              <option value="">Aucune typologie particulière</option>
+              {vehicleTypes.map(vt => (
+                <option key={vt.id} value={vt.id}>{vt.name}</option>
+              ))}
+            </select>
+          )
+        }
+
+        const typeName = vehicleTypes.find(vt => vt.id === currentTypeId)?.name;
+        return (
+          <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-md border border-slate-200 truncate inline-block max-w-[140px]" title={typeName || "Standard"}>
+            {typeName || "Standard"}
+          </span>
+        )
+      },
+    }),
+    // NOUVELLE COLONNE : Équipement requis (Choix unique)
+    col.display({
+      id: 'skills_constraints',
+      header: 'Équipement',
+      size: 150,
+      cell: ({ row }) => {
+        const isEditing = editingRowId === row.original.id;
+        const currentSkills = row.original.required_skills || [];
+
+        if (isEditing) {
+          return (
+            <div className="flex flex-wrap gap-1 max-w-[150px]">
+              {specialties.map(spec => {
+                const isActive = currentSkills.includes(spec.name);
+                return (
+                  <button
+                    key={spec.id}
+                    onClick={() => {
+                      // Si déjà actif, on désélectionne (tableau vide). Sinon, on remplace par cet unique équipement.
+                      const newSkills = isActive ? [] : [spec.name];
+                      updateDeliveryPoint(row.original.id, { required_skills: newSkills })
+                    }}
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors border ${
+                      isActive 
+                        ? 'bg-opti-red text-white border-opti-red' 
+                        : 'bg-white text-slate-400 border-slate-200 hover:border-opti-red/50'
+                    }`}
+                  >
+                    {spec.name}
+                  </button>
+                )
+              })}
+            </div>
+          )
+        }
+
+        if (currentSkills.length === 0) return <span className="text-xs text-slate-400 italic">Aucun</span>;
+
+        return (
+          <div className="flex flex-wrap gap-1">
+            {currentSkills.map(skill => (
+              <span key={skill} className="text-[10px] font-bold text-opti-blue bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded truncate max-w-[140px]" title={skill}>
+                {skill}
+              </span>
+            ))}
+          </div>
+        )
+      },
     }),
     col.display({
       id: 'actions',
@@ -253,40 +348,56 @@ export default function DeliveryTable() {
                   ><TrashIcon /></button>
                 </div>
               </div>
-              {/* Ligne 2 : détails */}
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs">
-                  <span className="text-slate-400 shrink-0">Palettes</span>
-                  <EditableCell value={p.pallets} type="number"
-                    forceEdit={editingRowId === p.id}
-                    onSave={(v) => updateDeliveryPoint(p.id, { pallets: Math.max(1, Math.round(Number(v))) })} />
-                </div>
-                <div className="flex items-center gap-1.5 text-xs">
-                  <span className="text-slate-400 shrink-0">Fenêtre</span>
-                  <div className="flex items-center gap-0.5">
-                    <EditableCell value={p.time_window.start} type="time"
-                      forceEdit={editingRowId === p.id}
-                      onSave={(v) => updateDeliveryPoint(p.id, { time_window: { ...p.time_window, start: v } })} />
-                    <span className="text-slate-300 mx-0.5">–</span>
-                    <EditableCell value={p.time_window.end} type="time"
-                      forceEdit={editingRowId === p.id}
-                      onSave={(v) => updateDeliveryPoint(p.id, { time_window: { ...p.time_window, end: v } })} />
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs">
-                  <span className="text-slate-400 shrink-0">Chgt dépôt</span>
-                  <EditableCell value={p.loading_time_at_depot} type="number"
-                    forceEdit={editingRowId === p.id}
-                    onSave={(v) => updateDeliveryPoint(p.id, { loading_time_at_depot: Math.max(1, Math.round(Number(v))) })} />
-                  <span className="text-slate-400">min</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs">
-                  <span className="text-slate-400 shrink-0">Décht client</span>
-                  <EditableCell value={p.unloading_time_at_client} type="number"
-                    forceEdit={editingRowId === p.id}
-                    onSave={(v) => updateDeliveryPoint(p.id, { unloading_time_at_client: Math.max(1, Math.round(Number(v))) })} />
-                  <span className="text-slate-400">min</span>
-                </div>
+              
+              {/* Détails ajoutés pour Mobile */}
+              <div className="flex flex-wrap gap-2 text-xs mt-2 p-2 bg-slate-50 rounded-lg">
+                 {/* Typologie (Mobile) */}
+                 <div className="w-full flex justify-between items-center border-b border-slate-200 pb-2">
+                    <span className="text-slate-500 font-semibold">Typologie de camion</span>
+                    {editingRowId === p.id ? (
+                      <select
+                        value={p.allowed_vehicle_types?.[0] || ''}
+                        onChange={(e) => updateDeliveryPoint(p.id, { allowed_vehicle_types: e.target.value ? [e.target.value] : [] })}
+                        className="border border-gray-200 rounded px-2 py-0.5 text-opti-blue bg-white max-w-[150px] truncate"
+                      >
+                        <option value="">Aucune typologie particulière</option>
+                        {vehicleTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                      </select>
+                    ) : (
+                      <span className="font-bold text-opti-blue bg-white px-2 rounded border border-slate-200 max-w-[150px] truncate" title={vehicleTypes.find(vt => vt.id === (p.allowed_vehicle_types?.[0]))?.name || "Standard"}>
+                        {vehicleTypes.find(vt => vt.id === (p.allowed_vehicle_types?.[0]))?.name || "Standard"}
+                      </span>
+                    )}
+                 </div>
+                 
+                 {/* Équipement (Mobile) */}
+                 <div className="w-full pt-1">
+                   <span className="text-slate-500 font-semibold block mb-1">Équipement</span>
+                   {editingRowId === p.id ? (
+                      <div className="flex flex-wrap gap-1">
+                        {specialties.map(spec => {
+                          const isActive = (p.required_skills || []).includes(spec.name);
+                          return (
+                            <button key={spec.id} onClick={() => {
+                                // Logique unique équipement
+                                const newSkills = isActive ? [] : [spec.name];
+                                updateDeliveryPoint(p.id, { required_skills: newSkills })
+                              }}
+                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${isActive ? 'bg-opti-red text-white border-opti-red' : 'bg-white text-slate-400 border-slate-200'}`}
+                            >
+                              {spec.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                   ) : (
+                     <div className="flex gap-1">
+                       {(p.required_skills || []).length === 0 ? <span className="text-slate-400 italic">Aucun équipement</span> : p.required_skills?.map(skill => (
+                          <span key={skill} className="text-[10px] font-bold text-opti-blue bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded truncate max-w-[150px]" title={skill}>{skill}</span>
+                       ))}
+                     </div>
+                   )}
+                 </div>
               </div>
             </div>
           )
