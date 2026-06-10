@@ -1,21 +1,22 @@
 'use client'
 
 import { getAllVehicles } from '@/services/fleet'
+import { getDrivers } from '@/services/drivers'
 import { useState } from 'react'
 import { useDeliveryStore } from '@/stores/deliveryStore'
 import { geocodeAddress } from '@/services/geocoding'
-import { ClusteringResult } from '@/services/clustering'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { 
   X, Loader2, MapPin, AlertCircle, AlertTriangle, Sparkles, 
-  Truck, Home, Flag, RefreshCw, Coffee 
+  Truck, Home, Flag, RefreshCw, Coffee, User
 } from 'lucide-react'
 import { buildSolverPayload, timeToSeconds } from '@/utils/solverMapper'
 import { generateAndSaveDistanceMatrix, MatrixPoint } from '@/services/distanceMatrix'
-import { saveVehicleTrips } from '@/services/planning'
+import { saveVehicleTrips, isDriverBusy, clearSessionTrips } from '@/services/planning'
 
-// Dictionnaire métier pour l'affrètement
+// --- DICTIONNAIRES ET HELPERS ---
+
 function formatRaisonRejet(raison: string): string {
   const map: Record<string, string> = {
     "SATURE_CAPACITE_POIDS_VOLUME": "Capacité max atteinte (Poids/Volume)",
@@ -28,7 +29,6 @@ function formatRaisonRejet(raison: string): string {
   return map[raison] || raison
 }
 
-// Convertit les minutes du solveur en format HHhMM
 function formatMinutes(minutes: number): string {
   if (typeof minutes !== 'number' || isNaN(minutes)) return '--h--';
   const h = Math.floor(minutes / 60);
@@ -36,7 +36,6 @@ function formatMinutes(minutes: number): string {
   return `${h.toString().padStart(2, '0')}h${m.toString().padStart(2, '0')}`;
 }
 
-// Génération de la signature stricte pour le cache
 function generateSessionSignature(session: any): string {
   if (!session || !session.delivery_points) return '';
   
@@ -54,7 +53,7 @@ function generateSessionSignature(session: any): string {
   const payloadToHash = {
     date: session.meta?.date,
     start_time: session.meta?.start_time,
-    vehicles: session.meta?.resources_active,
+    vehicles: session.meta?.resources_active, // Gardé pour rétrocompatibilité
     origin: session.origin_node?.address,
     end: session.end_node?.address,
     points: mappedPoints
@@ -63,7 +62,6 @@ function generateSessionSignature(session: any): string {
   return JSON.stringify(payloadToHash);
 }
 
-// Récupère le style et l'icône appropriés pour la timeline
 const getNodeStyle = (type: string) => {
   switch(type) {
     case 'DEPOT_START': return { icon: Home, color: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200' };
@@ -73,6 +71,8 @@ const getNodeStyle = (type: string) => {
     default: return { icon: MapPin, color: 'text-opti-red', bg: 'bg-red-100', border: 'border-red-200' };
   }
 }
+
+// --- COMPOSANT PRINCIPAL ---
 
 export default function GenerateTourneeButton() {
   const [isOpen, setIsOpen] = useState(false)
@@ -99,6 +99,7 @@ export default function GenerateTourneeButton() {
     if (!session) return
     setIsOpen(true)
     
+    // 1. Vérification du cache pour éviter de recalculer inutilement
     const currentSignature = generateSessionSignature(session);
 
     if (localCache?.signature === currentSignature) {
@@ -129,6 +130,7 @@ export default function GenerateTourneeButton() {
     const nodes: any[] = []
     const failed: string[] = []
 
+    // 2. Géocodage des adresses
     for (const point of session.delivery_points) {
       const geo = await geocodeAddress(point.address)
       if (geo) {
@@ -163,13 +165,13 @@ export default function GenerateTourneeButton() {
     if (matrixPoints.length >= 2) {
       try {
         const res = await generateAndSaveDistanceMatrix(session.id, matrixPoints);
-        const allVehicles = await getAllVehicles();
         
-        const startTimes = session.delivery_points.map(p => timeToSeconds(p.time_window.start));
-        const endTimes = session.delivery_points.map(p => timeToSeconds(p.time_window.end));
-        const minStart = new Date(session.meta.date); minStart.setSeconds(Math.min(...startTimes) - 18000);
-        const maxEnd = new Date(session.meta.date); maxEnd.setSeconds(Math.max(...endTimes) + 18000);
-
+        // 3. Récupération des ressources (Véhicules & Chauffeurs)
+        const [allVehicles, allDrivers] = await Promise.all([
+          getAllVehicles(),
+          getDrivers()
+        ]);
+        
         const trulyAvailableVehicles = allVehicles.filter(v => {
           if (!v.is_active) return false;
           const inspectionDate = (v.inspection_date as any).toDate ? (v.inspection_date as any).toDate() : new Date(v.inspection_date);
@@ -179,6 +181,7 @@ export default function GenerateTourneeButton() {
 
         const solverPayload = buildSolverPayload(session, res, trulyAvailableVehicles);
         
+        // 4. Appel au solveur Python
         const solverResponse = await fetch("http://localhost:8000/api/optimize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -191,33 +194,104 @@ export default function GenerateTourneeButton() {
 
         if (optimizationResult.status === "success" || optimizationResult.status === "partial_success") {
           
-          const trips = optimizationResult.vehicles.map((v: any) => ({
-            vehicle_id: v.vehicle_id,
-            session_id: session.id,
-            start_time: new Date(new Date(session.meta.date).setSeconds(v.route[0].arrival_time)),
-            end_time: new Date(new Date(session.meta.date).setSeconds(v.route[v.route.length-1].arrival_time)),
-            status: 'PLANNED'
-          }));
-          await saveVehicleTrips(trips);
+          const assignedDriverIds = new Set<string>();
+          const driverAssignments: Record<string, any> = {};
+          const sessionDateStr = session.meta.date; 
 
-          // 3. CARTOGRAPHIE AVANCÉE DE LA TIMELINE
+          // Fonction de vérification des congés/absences
+          const isDriverAvailableOnDate = (driver: any) => {
+            if (driver.status !== "DISPONIBLE") return false;
+            if (driver.unavailabilities && driver.unavailabilities.length > 0) {
+              const targetDate = new Date(sessionDateStr);
+              targetDate.setHours(0,0,0,0);
+              
+              for (const unavail of driver.unavailabilities) {
+                const startRaw = unavail.startDate?.toDate ? unavail.startDate.toDate() : new Date(unavail.startDate || unavail.start);
+                const endRaw = unavail.endDate?.toDate ? unavail.endDate.toDate() : new Date(unavail.endDate || unavail.end);
+                
+                if (startRaw && endRaw && !isNaN(startRaw.getTime()) && !isNaN(endRaw.getTime())) {
+                  startRaw.setHours(0,0,0,0);
+                  endRaw.setHours(23,59,59,999);
+                  if (targetDate >= startRaw && targetDate <= endRaw) {
+                    return false; 
+                  }
+                }
+              }
+            }
+            return true;
+          };
+
+          const availableDriversToday = allDrivers.filter(isDriverAvailableOnDate);
+          const tripsToSave: any[] = [];
+
+          // 5. Assignation intelligente des chauffeurs
+          for (const v of optimizationResult.vehicles) {
+            const tripStart = new Date(new Date(sessionDateStr).setSeconds(v.route[0].arrival_time * 60));
+            const tripEnd = new Date(new Date(sessionDateStr).setSeconds(v.route[v.route.length - 1].arrival_time * 60));
+
+            let assignedDriver = null;
+
+            // Priorité 1 : Chauffeur attitré au camion
+            const potentialDrivers = availableDriversToday.filter(d => !assignedDriverIds.has(d.id) && (d.assignedVehicles || []).includes(v.vehicle_id));
+            for (const d of potentialDrivers) {
+              const isBusy = await isDriverBusy(d.id, tripStart, tripEnd, session.id); // On exclut la session actuelle
+              if (!isBusy) {
+                assignedDriver = d;
+                break;
+              }
+            }
+
+            // Priorité 2 : N'importe quel chauffeur libre
+            if (!assignedDriver) {
+              for (const d of availableDriversToday) {
+                if (!assignedDriverIds.has(d.id)) {
+                  const isBusy = await isDriverBusy(d.id, tripStart, tripEnd, session.id); // On exclut la session actuelle
+                  if (!isBusy) {
+                    assignedDriver = d;
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (assignedDriver) {
+              assignedDriverIds.add(assignedDriver.id);
+            }
+
+            driverAssignments[v.vehicle_id] = assignedDriver;
+
+            tripsToSave.push({
+              vehicle_id: v.vehicle_id,
+              driver_id: assignedDriver?.id || null, 
+              session_id: session.id,
+              start_time: tripStart,
+              end_time: tripEnd,
+              status: 'PLANNED'
+            });
+          }
+
+          // Nettoyage puis sauvegarde des trajets en BDD
+          await clearSessionTrips(session.id);
+          await saveVehicleTrips(tripsToSave);
+
+          // 6. Mapping des données pour l'interface UI
           const realClusters = optimizationResult.vehicles.map((v: any) => {
             const vehicleDb = allVehicles.find(veh => veh.id === v.vehicle_id);
             const vehicleName = vehicleDb?.plate || vehicleDb?.name || v.vehicle_id;
+            
+            const assignedDriver = driverAssignments[v.vehicle_id];
 
             const mappedNodes = v.route.map((stop: any, index: number) => {
-              // Nettoyage de l'ID en cas de division (VRPOptimizer _PART_)
               const baseId = stop.client_id ? stop.client_id.split('_PART_')[0] : '';
 
               if (stop.stop_type === 'DELIVERY') {
                 const point = session.delivery_points.find((p: any) => p.id === baseId);
-                
                 return {
                   ...point,
                   step_type: 'DELIVERY',
                   arrival_time: stop.arrival_time,
-                  action_duration: stop.action_duration || 0, // SOURCE DE VÉRITÉ : Backend
-                  pallets: stop.delivered_pallets || point?.pallets, // SOURCE DE VÉRITÉ : Backend
+                  action_duration: stop.action_duration || 0,
+                  pallets: stop.delivered_pallets || point?.pallets, 
                   uid: `del-${index}`
                 };
               } else if (stop.stop_type === 'RELOAD') {
@@ -225,15 +299,15 @@ export default function GenerateTourneeButton() {
                   step_type: 'RELOAD',
                   address: 'Retour Dépôt (Rechargement)',
                   arrival_time: stop.arrival_time,
-                  action_duration: stop.action_duration || 0, // SOURCE DE VÉRITÉ : Backend
+                  action_duration: stop.action_duration || 0,
                   uid: `rel-${index}`
                 };
               } else if (stop.stop_type === 'DEPOT_START') {
                 return {
                   step_type: 'DEPOT_START',
                   address: session.origin_node.address,
-                  arrival_time: stop.arrival_time, 
-                  action_duration: stop.action_duration || 0, // SOURCE DE VÉRITÉ : Backend
+                  arrival_time: stop.arrival_time,
+                  action_duration: stop.action_duration || 0,
                   uid: `start-${index}`
                 };
               } else if (stop.stop_type === 'DEPOT_END') {
@@ -260,12 +334,15 @@ export default function GenerateTourneeButton() {
             return {
               group_id: v.vehicle_id,
               vehicle_name: vehicleName,
+              driver_id: assignedDriver?.id || null, 
+              driver_name: assignedDriver ? `${assignedDriver.firstName} ${assignedDriver.lastName}`.trim() : null, 
               nodes: mappedNodes
             };
           });
 
           const newAffretementReport = optimizationResult.rapport_affretement || [];
 
+          // Mise à jour de la session globale Firebase
           await updateDoc(doc(db, 'delivery_sessions', session.id), {
             status: "VALIDATED",
             clusters: realClusters,
@@ -315,6 +392,8 @@ export default function GenerateTourneeButton() {
     }
   }
 
+  // --- RENDER ---
+
   return (
     <>
       <button
@@ -332,7 +411,6 @@ export default function GenerateTourneeButton() {
           
           <div className="relative w-full max-w-4xl bg-white rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in duration-200">
             
-            {/* Header épuré */}
             <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
               <div>
                 <h3 className="text-2xl font-bold text-opti-blue font-display">Itinéraires & Plannings</h3>
@@ -347,24 +425,19 @@ export default function GenerateTourneeButton() {
               </button>
             </div>
 
-            {/* Content */}
             <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
               {isProcessing ? (
-                
-                // Loader simple
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <div className="relative mb-6">
                     <Loader2 className="w-16 h-16 text-opti-blue animate-spin" />
                     <MapPin className="w-6 h-6 text-opti-red absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                   </div>
                   <h4 className="text-xl font-bold text-opti-blue mb-2">Traitement en cours...</h4>
-                  <p className="text-slate-500 max-w-xs">Calcul des tournées et sauvegarde sécurisée.</p>
+                  <p className="text-slate-500 max-w-xs">Calcul des tournées et assignation des chauffeurs.</p>
                 </div>
-
               ) : (
                 <div className="space-y-8 animate-in fade-in duration-500">
                   
-                  {/* Alertes d'adresses non localisées */}
                   {unlocated.length > 0 && (
                     <div className="bg-red-50 border border-red-100 rounded-2xl p-6">
                       <div className="flex items-center gap-3 text-opti-red mb-4">
@@ -381,7 +454,6 @@ export default function GenerateTourneeButton() {
                     </div>
                   )}
 
-                  {/* Rapport d'Affrètement */}
                   {affretement.length > 0 && (
                     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 shadow-sm">
                       <div className="flex items-center gap-3 text-amber-700 mb-4">
@@ -413,73 +485,76 @@ export default function GenerateTourneeButton() {
                     </div>
                   )}
 
-                  {/* Routes Optimisées (Timeline Avancée) */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {result?.clusters.map((cluster: any) => {
-                      
                       const deliveryCount = cluster.nodes.filter((n: any) => n.step_type === 'DELIVERY' || !n.step_type).length;
 
                       return (
                         <div key={cluster.group_id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
                           
-                          {/* Header du Véhicule */}
                           <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                            <span className="text-sm font-bold text-opti-blue tracking-wider flex items-center gap-2">
-                              <Truck className="w-5 h-5 text-opti-red" />
-                              {cluster.vehicle_name || `Véhicule ${String(cluster.group_id).slice(0, 8)}`}
-                            </span>
+                            
+                            <div className="flex flex-col gap-1.5">
+                              <span className="text-sm font-bold text-opti-blue tracking-wider flex items-center gap-2">
+                                <Truck className="w-4 h-4 text-opti-red" />
+                                {cluster.vehicle_name || `Véhicule ${String(cluster.group_id).slice(0, 8)}`}
+                              </span>
+                              
+                              {/* Alerte Visuelle si aucun chauffeur n'a été trouvé */}
+                              {cluster.driver_id ? (
+                                <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                                  <User className="w-3.5 h-3.5" />
+                                  {cluster.driver_name}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200 flex items-center gap-1.5 w-fit">
+                                  <AlertCircle className="w-3.5 h-3.5" />
+                                  Aucun chauffeur disponible
+                                </span>
+                              )}
+                            </div>
+
                             <span className="text-[10px] font-bold bg-white text-slate-500 px-2 py-1 rounded-md border border-slate-200 shadow-sm">
                               {deliveryCount} livraisons
                             </span>
                           </div>
 
-                          {/* La Timeline (Ligne du temps) */}
                           <div className="p-5 max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
                             {cluster.nodes.map((node: any, idx: number) => {
                               const stepType = node.step_type || 'DELIVERY';
                               const { icon: Icon, color, bg, border } = getNodeStyle(stepType);
                               
                               const arrivalStr = formatMinutes(node.arrival_time);
-                              
-                              // CORRECTION JSX DU "0" SAUVAGE : on demande un VRAI booléen
                               const hasDuration = node.action_duration > 0; 
-                              
                               const departureStr = hasDuration ? formatMinutes(node.arrival_time + node.action_duration) : null;
 
                               return (
                                 <div key={node.uid || idx} className="flex gap-4 group">
-                                  
-                                  {/* Colonne de gauche : Icône + Ligne */}
                                   <div className="flex flex-col items-center">
                                     <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 z-10 ${bg} ${color} ${border}`}>
                                       <Icon className="w-4 h-4" />
                                     </div>
-                                    {/* Ligne verticale */}
                                     {idx !== cluster.nodes.length - 1 && (
                                       <div className="w-0.5 min-h-[32px] flex-1 bg-slate-100 group-hover:bg-slate-200 transition-colors my-1" />
                                     )}
                                   </div>
 
-                                  {/* Colonne de droite : Détails */}
                                   <div className={`flex-1 pb-6 pt-1.5 ${idx === cluster.nodes.length - 1 ? 'pb-0' : ''}`}>
                                     <p className={`text-xs font-bold ${stepType === 'DELIVERY' ? 'text-slate-700' : 'text-slate-500'} truncate`} title={node.address}>
                                       {node.address}
                                     </p>
                                     
                                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                                      {/* Horaire */}
                                       <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
                                         {arrivalStr} {hasDuration && `— ${departureStr} (${node.action_duration} min)`}
                                       </span>
                                       
-                                      {/* Palettes */}
                                       {stepType === 'DELIVERY' && node.pallets && (
                                         <span className="text-[10px] font-bold text-opti-blue bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
                                           {node.pallets} palettes
                                         </span>
                                       )}
 
-                                      {/* Fenêtre Horaire */}
                                       {stepType === 'DELIVERY' && node.time_window && (
                                         <span className="text-[10px] font-medium text-slate-400">
                                           Créneau : {node.time_window.start} - {node.time_window.end}
@@ -501,7 +576,6 @@ export default function GenerateTourneeButton() {
               )}
             </div>
 
-            {/* Footer */}
             {!isProcessing && (
               <div className="px-8 py-6 border-t border-slate-100 flex items-center justify-end bg-white sticky bottom-0">
                 <button 
