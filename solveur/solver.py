@@ -8,6 +8,7 @@ from models import OptimizationRequest
 
 logger = logging.getLogger(__name__)
 
+# La pénalité pour forcer le rechargement
 VEHICLE_ACTIVATION_PENALTY = 1000000 
 
 class Route:
@@ -53,7 +54,6 @@ class Route:
         accum_work = 0
         total_demand = 0
 
-        # On calcule les rechargements AVANT de commencer la timeline
         nodes_triggering_reload = set()
         temp_demand = 0
         for idx, n_idx in enumerate(self.nodes):
@@ -75,11 +75,11 @@ class Route:
             self.timeline.append({
                 "stop_type": "DEPOT_START",
                 "client_id": self.request.nodes[current_node_idx].id,
-                "arrival_time": current_time // 60,
-                "action_duration": initial_load_time // 60 # Source de vérité absolue pour le Front
+                # CORRECTION : Arrondi mathématique exact
+                "arrival_time": int(round(current_time / 60)),
+                "action_duration": int(round(initial_load_time / 60))
             })
             
-        # On applique le temps de chargement initial AVANT de prendre la route
         current_time += initial_load_time
         accum_work += initial_load_time
 
@@ -115,8 +115,8 @@ class Route:
                             self.timeline.append({
                                 "stop_type": "BREAK", 
                                 "client_id": "PAUSE_RSE", 
-                                "arrival_time": current_time // 60,
-                                "action_duration": self.request.break_duration_seconds // 60
+                                "arrival_time": int(round(current_time / 60)),
+                                "action_duration": int(round(self.request.break_duration_seconds / 60))
                             })
                         accum_drive = 0
                         accum_work = 0
@@ -130,8 +130,8 @@ class Route:
                         self.timeline.append({
                             "stop_type": "RELOAD", 
                             "client_id": self.request.nodes[depot_idx].id, 
-                            "arrival_time": current_time // 60,
-                            "action_duration": dynamic_reload_time // 60 # Source de vérité absolue pour le Front
+                            "arrival_time": int(round(current_time / 60)),
+                            "action_duration": int(round(dynamic_reload_time / 60))
                         })
                         
                     if self.request.enforce_break and (accum_work + dynamic_reload_time > self.request.max_continuous_work_seconds):
@@ -140,8 +140,8 @@ class Route:
                             self.timeline.append({
                                 "stop_type": "BREAK", 
                                 "client_id": "PAUSE_RSE", 
-                                "arrival_time": current_time // 60,
-                                "action_duration": self.request.break_duration_seconds // 60
+                                "arrival_time": int(round(current_time / 60)),
+                                "action_duration": int(round(self.request.break_duration_seconds / 60))
                             })
                         accum_drive = 0
                         accum_work = 0
@@ -167,8 +167,8 @@ class Route:
                     self.timeline.append({
                         "stop_type": "BREAK", 
                         "client_id": "PAUSE_RSE", 
-                        "arrival_time": current_time // 60,
-                        "action_duration": self.request.break_duration_seconds // 60
+                        "arrival_time": int(round(current_time / 60)),
+                        "action_duration": int(round(self.request.break_duration_seconds / 60))
                     })
                 accum_drive = 0
                 accum_work = 0
@@ -186,8 +186,8 @@ class Route:
                             self.timeline.append({
                                 "stop_type": "BREAK", 
                                 "client_id": "PAUSE_ATTENTE", 
-                                "arrival_time": current_time // 60,
-                                "action_duration": wait_time // 60
+                                "arrival_time": int(round(current_time / 60)),
+                                "action_duration": int(round(wait_time / 60))
                             })
                         accum_drive = 0
                         accum_work = 0
@@ -200,9 +200,9 @@ class Route:
                 self.timeline.append({
                     "stop_type": "DELIVERY", 
                     "client_id": node.id, 
-                    "arrival_time": current_time // 60,
-                    "action_duration": node.unloading_time // 60, # Temps de déchargement proportionnel
-                    "delivered_pallets": node.demand # Nombre réel de palettes déchargées sur CET arrêt
+                    "arrival_time": int(round(current_time / 60)),
+                    "action_duration": int(round(node.unloading_time / 60)),
+                    "delivered_pallets": node.demand 
                 })
 
             if self.request.enforce_break and (accum_work + node.unloading_time > self.request.max_continuous_work_seconds):
@@ -211,8 +211,8 @@ class Route:
                     self.timeline.append({
                         "stop_type": "BREAK", 
                         "client_id": "PAUSE_RSE", 
-                        "arrival_time": current_time // 60,
-                        "action_duration": self.request.break_duration_seconds // 60
+                        "arrival_time": int(round(current_time / 60)),
+                        "action_duration": int(round(self.request.break_duration_seconds / 60))
                     })
                 accum_drive = 0
                 accum_work = 0
@@ -231,8 +231,8 @@ class Route:
                 self.timeline.append({
                     "stop_type": "BREAK",
                     "client_id": "PAUSE_RSE",
-                    "arrival_time": current_time // 60,
-                    "action_duration": self.request.break_duration_seconds // 60
+                    "arrival_time": int(round(current_time / 60)),
+                    "action_duration": int(round(self.request.break_duration_seconds / 60))
                 })
             accum_drive = 0
             accum_work = 0
@@ -244,7 +244,7 @@ class Route:
             self.timeline.append({
                 "stop_type": "DEPOT_END",
                 "client_id": self.request.nodes[end_idx].id,
-                "arrival_time": current_time // 60,
+                "arrival_time": int(round(current_time / 60)),
                 "action_duration": 0
             })
 
@@ -299,10 +299,10 @@ class VRPOptimizer:
                     sub_node.id = f"{node.id}_PART_{i+1}"
                     sub_node.demand = max_cap
                     
-                    # PROPORTION DU TEMPS SELON LA DEMANDE :
+                    # CORRECTION : Temps proportionnel AVEC UN MINIMUM DE 1 MINUTE (60s)
                     fraction = max_cap / node.demand
-                    sub_node.loading_time = int(node.loading_time * fraction)
-                    sub_node.unloading_time = int(node.unloading_time * fraction)
+                    sub_node.loading_time = max(60, int(node.loading_time * fraction))
+                    sub_node.unloading_time = max(60, int(node.unloading_time * fraction))
                     
                     new_nodes.append(sub_node)
                     old_indices.append(idx)
@@ -313,10 +313,10 @@ class VRPOptimizer:
                     sub_node.id = f"{node.id}_PART_FINAL"
                     sub_node.demand = remainder
                     
-                    # PROPORTION DU TEMPS SELON LA DEMANDE :
+                    # CORRECTION : Temps proportionnel AVEC UN MINIMUM DE 1 MINUTE
                     fraction = remainder / node.demand
-                    sub_node.loading_time = int(node.loading_time * fraction)
-                    sub_node.unloading_time = int(node.unloading_time * fraction)
+                    sub_node.loading_time = max(60, int(node.loading_time * fraction))
+                    sub_node.unloading_time = max(60, int(node.unloading_time * fraction))
                     
                     new_nodes.append(sub_node)
                     old_indices.append(idx)
