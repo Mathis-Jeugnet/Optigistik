@@ -25,7 +25,10 @@ export async function getAllVehicles(): Promise<Vehicle[]> {
 export interface VehicleType {
   id: string;
   name: string;
+  is_active: boolean;
+  capacity_palettes: number;
   description?: string;
+  plate: string;
 }
 
 export interface Specialty {

@@ -1,36 +1,94 @@
 'use client'
 
 import { getAllVehicles } from '@/services/fleet'
-import { getBusyVehicleIdsForDate } from '@/services/firestoreSession'
 import { useState } from 'react'
 import { useDeliveryStore } from '@/stores/deliveryStore'
 import { geocodeAddress } from '@/services/geocoding'
-import { generateClusters, ClusterNode, ClusteringResult } from '@/services/clustering'
+import { ClusteringResult } from '@/services/clustering'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { Check, Copy, X, Loader2, MapPin, Group, AlertCircle, Send, Code, Grid3X3 } from 'lucide-react'
+import { 
+  X, Loader2, MapPin, AlertCircle, AlertTriangle, Sparkles, 
+  Truck, Home, Flag, RefreshCw, Coffee 
+} from 'lucide-react'
 import { buildSolverPayload, timeToSeconds } from '@/utils/solverMapper'
-import { generateAndSaveDistanceMatrix, MatrixPoint, DistanceMatrixResult } from '@/services/distanceMatrix'
+import { generateAndSaveDistanceMatrix, MatrixPoint } from '@/services/distanceMatrix'
 import { saveVehicleTrips } from '@/services/planning'
 
-function secondsToHHmm(s: number): string {
-  const hours = Math.floor(s / 3600);
-  const minutes = Math.floor((s % 3600) / 60);
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${pad(hours)}:${pad(minutes)}`;
+// Dictionnaire métier pour l'affrètement
+function formatRaisonRejet(raison: string): string {
+  const map: Record<string, string> = {
+    "SATURE_CAPACITE_POIDS_VOLUME": "Capacité max atteinte (Poids/Volume)",
+    "SATURE_AMPLITUDE_TEMPS_OU_FENETRES_HORAIRES": "Hors créneaux horaires / Amplitude",
+    "INCOMPATIBILITE_VEHICULE_FLOTTE": "Aucun véhicule compatible",
+    "INCOMPATIBILITE_COMPETENCES_FLOTTE": "Compétence requise manquante",
+    "SATURE_FLOTTE_GENERALE": "Flotte saturée",
+    "ERREUR_LOCKED_NODE_HORAIRE_DEPASSE": "Heure dépassée (Verrouillé)"
+  }
+  return map[raison] || raison
+}
+
+// Convertit les minutes du solveur en format HHhMM
+function formatMinutes(minutes: number): string {
+  if (typeof minutes !== 'number' || isNaN(minutes)) return '--h--';
+  const h = Math.floor(minutes / 60);
+  const m = Math.floor(minutes % 60);
+  return `${h.toString().padStart(2, '0')}h${m.toString().padStart(2, '0')}`;
+}
+
+// Génération de la signature stricte pour le cache
+function generateSessionSignature(session: any): string {
+  if (!session || !session.delivery_points) return '';
+  
+  const mappedPoints = session.delivery_points.map((p: any) => ({
+    id: p.id,
+    addr: p.address,
+    pal: p.pallets,
+    lt: p.loading_time_at_depot,
+    ut: p.unloading_time_at_client,
+    tw: `${p.time_window?.start}-${p.time_window?.end}`,
+    avt: (p.allowed_vehicle_types || []).join(','),
+    rs: (p.required_skills || []).join(',')
+  })).sort((a: any, b: any) => a.id.localeCompare(b.id));
+
+  const payloadToHash = {
+    date: session.meta?.date,
+    start_time: session.meta?.start_time,
+    vehicles: session.meta?.resources_active,
+    origin: session.origin_node?.address,
+    end: session.end_node?.address,
+    points: mappedPoints
+  };
+
+  return JSON.stringify(payloadToHash);
+}
+
+// Récupère le style et l'icône appropriés pour la timeline
+const getNodeStyle = (type: string) => {
+  switch(type) {
+    case 'DEPOT_START': return { icon: Home, color: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200' };
+    case 'DEPOT_END': return { icon: Flag, color: 'text-emerald-600', bg: 'bg-emerald-100', border: 'border-emerald-200' };
+    case 'RELOAD': return { icon: RefreshCw, color: 'text-amber-600', bg: 'bg-amber-100', border: 'border-amber-200' };
+    case 'BREAK': return { icon: Coffee, color: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200' };
+    default: return { icon: MapPin, color: 'text-opti-red', bg: 'bg-red-100', border: 'border-red-200' };
+  }
 }
 
 export default function GenerateTourneeButton() {
   const [isOpen, setIsOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [result, setResult] = useState<ClusteringResult | null>(null)
+  
+  const [localCache, setLocalCache] = useState<{
+    signature: string;
+    clusters: any[];
+    unlocated: string[];
+    affretement: any[];
+  } | null>(null)
+  
+  const [result, setResult] = useState<any | null>(null)
   const [unlocated, setUnlocated] = useState<string[]>([])
-  const [copied, setCopied] = useState(false)
-  const [showJson, setShowJson] = useState(false)
-  const [showMatrix, setShowMatrix] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [matrixStatus, setMatrixStatus] = useState<'idle' | 'computing' | 'done' | 'error'>('idle')
-  const [matrixResult, setMatrixResult] = useState<DistanceMatrixResult | null>(null)
+  const [affretement, setAffretement] = useState<Array<{client_id: string, raison_rejet: string}>>([])
+  const [solverMessage, setSolverMessage] = useState<string | null>(null)
 
   const session = useDeliveryStore((s) => s.session)
   const selectValidationErrors = useDeliveryStore((s) => s.selectValidationErrors)
@@ -40,166 +98,221 @@ export default function GenerateTourneeButton() {
   const handleGenerate = async () => {
     if (!session) return
     setIsOpen(true)
+    
+    const currentSignature = generateSessionSignature(session);
+
+    if (localCache?.signature === currentSignature) {
+      setResult({ clusters: localCache.clusters });
+      setUnlocated(localCache.unlocated);
+      setAffretement(localCache.affretement);
+      setIsProcessing(false);
+      return;
+    }
+
+    const hasSessionClusters = (session.clusters?.length ?? 0) > 0;
+    const hasSessionAffretement = (session.affretement_report?.length ?? 0) > 0;
+
+    if (session.optimization_signature === currentSignature && (hasSessionClusters || hasSessionAffretement)) {
+      setResult({ clusters: session.clusters || [] });
+      setUnlocated(session.unlocated_points || []);
+      setAffretement(session.affretement_report || []);
+      setIsProcessing(false);
+      return; 
+    }
+
     setIsProcessing(true)
     setResult(null)
     setUnlocated([])
-    setShowJson(false)
-    setMatrixStatus('idle')
-    setMatrixResult(null)
-    setShowMatrix(false)
+    setAffretement([])
+    setSolverMessage(null)
 
-    const nodes: ClusterNode[] = []
+    const nodes: any[] = []
     const failed: string[] = []
 
-    // 1. Géocodage séquentiel
     for (const point of session.delivery_points) {
       const geo = await geocodeAddress(point.address)
       if (geo) {
         nodes.push({
-          ...point, // On garde l'intégralité des métadonnées originales
+          ...point,
           lat: geo.lat,
           lng: geo.lng,
           demand: point.pallets,
           service_time: point.unloading_time_at_client * 60,
+          allowed_vehicle_types: point.allowed_vehicle_types || null,
+          required_skills: point.required_skills || null,
           time_window: {
             start: parseInt(point.time_window.start.split(':')[0]) * 3600 + parseInt(point.time_window.start.split(':')[1]) * 60,
             end: parseInt(point.time_window.end.split(':')[0]) * 3600 + parseInt(point.time_window.end.split(':')[1]) * 60,
           }
-        } as any)
+        })
       } else {
         failed.push(point.address)
       }
     }
 
-    // 2. Géocodage du dépôt de départ et du point final (en parallèle)
     const [originGeo, endGeo] = await Promise.all([
       geocodeAddress(session.origin_node.address),
       geocodeAddress(session.end_node.address),
     ])
 
-    // 3. Clustering (synchrone, instantané)
-    const clusteringResult = generateClusters(nodes)
-
-    // 4. Construction des points pour la matrice : dépôt + livraisons + retour
     const matrixPoints: MatrixPoint[] = []
-    if (originGeo) {
-      matrixPoints.push({ id: 'depot_origin', address: session.origin_node.address, lat: originGeo.lat, lng: originGeo.lng, role: 'origin' })
-    }
-    for (const node of nodes) {
-      matrixPoints.push({ id: node.id, address: node.address, lat: node.lat, lng: node.lng, role: 'delivery' })
-    }
-    if (endGeo) {
-      matrixPoints.push({ id: 'depot_end', address: session.end_node.address, lat: endGeo.lat, lng: endGeo.lng, role: 'end' })
-    }
+    if (originGeo) matrixPoints.push({ id: 'depot_origin', address: session.origin_node.address, lat: originGeo.lat, lng: originGeo.lng, role: 'origin' })
+    for (const node of nodes) matrixPoints.push({ id: node.id, address: node.address, lat: node.lat, lng: node.lng, role: 'delivery' })
+    if (endGeo) matrixPoints.push({ id: 'depot_end', address: session.end_node.address, lat: endGeo.lat, lng: endGeo.lng, role: 'end' })
 
-    // 5. Sauvegarde des clusters (bloquant, rapide)
-    setIsSaving(true)
-    try {
-      await updateDoc(doc(db, 'delivery_sessions', session.id), {
-        clusters: clusteringResult.clusters,
-        unlocated_points: failed,
-        updatedAt: new Date()
-      })
-    } catch (error) {
-      console.error("Erreur lors de la sauvegarde des clusters dans Firebase:", error)
-    } finally {
-      setIsSaving(false)
-    }
-
-    // 6. Affichage des résultats immédiatement
-    setResult(clusteringResult)
-    setUnlocated(failed)
-    setIsProcessing(false)
-
-    // 7. Calcul de la matrice et appel au Solveur
     if (matrixPoints.length >= 2) {
-      setMatrixStatus('computing')
-      generateAndSaveDistanceMatrix(session.id, matrixPoints)
-        .then(async (res) => {
-          setMatrixResult(res)
-          setMatrixStatus('done')
+      try {
+        const res = await generateAndSaveDistanceMatrix(session.id, matrixPoints);
+        const allVehicles = await getAllVehicles();
+        
+        const startTimes = session.delivery_points.map(p => timeToSeconds(p.time_window.start));
+        const endTimes = session.delivery_points.map(p => timeToSeconds(p.time_window.end));
+        const minStart = new Date(session.meta.date); minStart.setSeconds(Math.min(...startTimes) - 18000);
+        const maxEnd = new Date(session.meta.date); maxEnd.setSeconds(Math.max(...endTimes) + 18000);
+
+        const trulyAvailableVehicles = allVehicles.filter(v => {
+          if (!v.is_active) return false;
+          const inspectionDate = (v.inspection_date as any).toDate ? (v.inspection_date as any).toDate() : new Date(v.inspection_date);
+          if (inspectionDate <= new Date(session.meta.date)) return false;
+          return true; 
+        });
+
+        const solverPayload = buildSolverPayload(session, res, trulyAvailableVehicles);
+        
+        const solverResponse = await fetch("http://localhost:8000/api/optimize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(solverPayload)
+        });
+        
+        if (!solverResponse.ok) throw new Error(`Erreur ${solverResponse.status}`);
+                    
+        const optimizationResult = await solverResponse.json();
+
+        if (optimizationResult.status === "success" || optimizationResult.status === "partial_success") {
           
-          try {
-            const allVehicles = await getAllVehicles();
-            
-            // Calcul du créneau global de la tournée (pour le filtre anti-conflit)
-            // On prend le min et max des fenêtres horaires des points
-            const startTimes = session.delivery_points.map(p => timeToSeconds(p.time_window.start));
-            const endTimes = session.delivery_points.map(p => timeToSeconds(p.time_window.end));
-            
-            const minStart = new Date(session.meta.date); minStart.setSeconds(Math.min(...startTimes) - 18000); // -5h
-            const maxEnd = new Date(session.meta.date); maxEnd.setSeconds(Math.max(...endTimes) + 18000); // +5h
+          const trips = optimizationResult.vehicles.map((v: any) => ({
+            vehicle_id: v.vehicle_id,
+            session_id: session.id,
+            start_time: new Date(new Date(session.meta.date).setSeconds(v.route[0].arrival_time)),
+            end_time: new Date(new Date(session.meta.date).setSeconds(v.route[v.route.length-1].arrival_time)),
+            status: 'PLANNED'
+          }));
+          await saveVehicleTrips(trips);
 
-            const trulyAvailableVehicles = allVehicles.filter(v => {
-              if (!v.is_active) return false;
-              
-              // 1. Vérif CT (avec conversion Firebase Timestamp sécurisée)
-              const inspectionDate = (v.inspection_date as any).toDate ? (v.inspection_date as any).toDate() : new Date(v.inspection_date);
-              if (inspectionDate <= new Date(session.meta.date)) return false;
+          // 3. CARTOGRAPHIE AVANCÉE DE LA TIMELINE
+          const realClusters = optimizationResult.vehicles.map((v: any) => {
+            const vehicleDb = allVehicles.find(veh => veh.id === v.vehicle_id);
+            const vehicleName = vehicleDb?.plate || vehicleDb?.name || v.vehicle_id;
 
-              // 2. Vérif Planning (La nouvelle logique métier)
-              // Note: Vous devrez implémenter cette fonction dans votre service 'planning'
-              // isVehicleBusy(v.id, minStart, maxEnd) 
-              
-              return true; 
-            });
+            const mappedNodes = v.route.map((stop: any, index: number) => {
+              // Nettoyage de l'ID en cas de division (VRPOptimizer _PART_)
+              const baseId = stop.client_id ? stop.client_id.split('_PART_')[0] : '';
 
-            const solverPayload = buildSolverPayload(session, res, trulyAvailableVehicles);
-            
-            const solverResponse = await fetch("http://localhost:8000/api/optimize", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(solverPayload)
-            });
-            
-            if (!solverResponse.ok) throw new Error(`Erreur ${solverResponse.status}`);
-                        
-            // AFFICHER LE RÉSULTAT DANS L'UI
-            // 1. Sauvegarder dans Firebase
-            const optimizationResult = await solverResponse.json();
-
-            if (optimizationResult.status === "success" || optimizationResult.status === "partial_success") {
-              try {
-                // A. Enregistrement dans 'vehicle_trips' pour le planning réel
-                // Ici, vous mappez les routes du solveur vers des créneaux horaires
-                const trips = optimizationResult.vehicles.map((v: any) => ({
-                  vehicle_id: v.vehicle_id,
-                  session_id: session.id,
-                  start_time: new Date(new Date(session.meta.date).setSeconds(v.route[0].arrival_time)),
-                  end_time: new Date(new Date(session.meta.date).setSeconds(v.route[v.route.length-1].arrival_time)),
-                  status: 'PLANNED'
-                }));
-                await saveVehicleTrips(trips); // Votre fonction du service planning
-
-                // B. Mise à jour de la session pour historique
-                await updateDoc(doc(db, 'delivery_sessions', session.id), {
-                  status: "VALIDATED",
-                  optimized_routes: optimizationResult.vehicles,
-                  summary: optimizationResult.summary,
-                  updatedAt: new Date()
-                });
+              if (stop.stop_type === 'DELIVERY') {
+                const point = session.delivery_points.find((p: any) => p.id === baseId);
                 
-                alert("Tournée validée et planning des camions mis à jour avec succès !");
-              } catch (e) {
-                console.error("Erreur sauvegarde Firebase:", e);
-                alert("Optimisation réussie mais erreur lors de la sauvegarde.");
+                return {
+                  ...point,
+                  step_type: 'DELIVERY',
+                  arrival_time: stop.arrival_time,
+                  action_duration: stop.action_duration || 0, // SOURCE DE VÉRITÉ : Backend
+                  pallets: stop.delivered_pallets || point?.pallets, // SOURCE DE VÉRITÉ : Backend
+                  uid: `del-${index}`
+                };
+              } else if (stop.stop_type === 'RELOAD') {
+                return {
+                  step_type: 'RELOAD',
+                  address: 'Retour Dépôt (Rechargement)',
+                  arrival_time: stop.arrival_time,
+                  action_duration: stop.action_duration || 0, // SOURCE DE VÉRITÉ : Backend
+                  uid: `rel-${index}`
+                };
+              } else if (stop.stop_type === 'DEPOT_START') {
+                return {
+                  step_type: 'DEPOT_START',
+                  address: session.origin_node.address,
+                  arrival_time: stop.arrival_time, 
+                  action_duration: stop.action_duration || 0, // SOURCE DE VÉRITÉ : Backend
+                  uid: `start-${index}`
+                };
+              } else if (stop.stop_type === 'DEPOT_END') {
+                return {
+                  step_type: 'DEPOT_END',
+                  address: session.end_node.address,
+                  arrival_time: stop.arrival_time,
+                  action_duration: 0,
+                  uid: `end-${index}`
+                };
+              } else if (stop.stop_type === 'BREAK') {
+                const isWaitBreak = stop.client_id === 'PAUSE_ATTENTE';
+                return {
+                  step_type: 'BREAK',
+                  address: isWaitBreak ? 'Pause optimisée (Attente ouverture client)' : 'Pause Réglementaire (RSE)',
+                  arrival_time: stop.arrival_time,
+                  action_duration: stop.action_duration || 45,
+                  uid: `break-${index}`
+                };
               }
-            }
+              return null;
+            }).filter(Boolean);
 
-          } catch (err) {
-            console.error(err);
-            alert("Erreur lors de l'optimisation.");
-          }
-        })
-        .catch((err) => { console.error(err); setMatrixStatus('error'); })
+            return {
+              group_id: v.vehicle_id,
+              vehicle_name: vehicleName,
+              nodes: mappedNodes
+            };
+          });
+
+          const newAffretementReport = optimizationResult.rapport_affretement || [];
+
+          await updateDoc(doc(db, 'delivery_sessions', session.id), {
+            status: "VALIDATED",
+            clusters: realClusters,
+            unlocated_points: failed,
+            optimized_routes: optimizationResult.vehicles,
+            summary: optimizationResult.summary,
+            affretement_report: newAffretementReport,
+            optimization_signature: currentSignature,
+            updatedAt: new Date()
+          });
+          
+          setLocalCache({
+            signature: currentSignature,
+            clusters: realClusters,
+            unlocated: failed,
+            affretement: newAffretementReport
+          });
+          
+          useDeliveryStore.setState((state) => ({
+            session: state.session ? {
+              ...state.session,
+              status: "VALIDATED",
+              clusters: realClusters,
+              unlocated_points: failed,
+              optimized_routes: optimizationResult.vehicles,
+              summary: optimizationResult.summary,
+              affretement_report: newAffretementReport,
+              optimization_signature: currentSignature,
+              updatedAt: new Date() as any
+            } : null
+          }));
+          
+          setAffretement(newAffretementReport);
+          setSolverMessage(optimizationResult.message_exploitant || null);
+          setResult({ clusters: realClusters });
+          setUnlocated(failed);
+          setIsProcessing(false);
+        }
+
+      } catch (err) {
+        console.error(err);
+        alert("Erreur lors de l'optimisation. Veuillez réessayer.");
+        setIsProcessing(false);
+      }
+    } else {
+        setIsProcessing(false);
     }
-  }
-
-  const handleCopyJSON = () => {
-    if (!result) return
-    navigator.clipboard.writeText(JSON.stringify(result, null, 2))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -209,8 +322,8 @@ export default function GenerateTourneeButton() {
         disabled={!canGenerate}
         className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-opti-blue text-white text-sm font-bold hover:bg-slate-800 transition-all shadow-lg shadow-blue-100 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
       >
-        <Group className="w-4 h-4" />
-        Générer la tournée
+        <Sparkles className="w-4 h-4" />
+        Optimiser la tournée
       </button>
 
       {isOpen && (
@@ -218,121 +331,40 @@ export default function GenerateTourneeButton() {
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !isProcessing && setIsOpen(false)} />
           
           <div className="relative w-full max-w-4xl bg-white rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in duration-200">
-            {/* Header */}
+            
+            {/* Header épuré */}
             <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
               <div>
-                <h3 className="text-2xl font-bold text-opti-blue font-display">Optimisation de la tournée</h3>
-                <p className="text-slate-500 text-sm mt-1">Groupement intelligent de vos points de livraison</p>
+                <h3 className="text-2xl font-bold text-opti-blue font-display">Itinéraires & Plannings</h3>
+                <p className="text-slate-500 text-sm mt-1">Généré par le moteur d'intelligence artificielle</p>
               </div>
-              <div className="flex items-center gap-2">
-                {result && (
-                  <button
-                    onClick={() => { setShowJson(!showJson); setShowMatrix(false) }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${showJson ? 'bg-opti-blue text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                  >
-                    <Code className="w-4 h-4" />
-                    {showJson ? 'Voir les cartes' : 'Voir le JSON'}
-                  </button>
-                )}
-                {matrixResult && (
-                  <button
-                    onClick={() => { setShowMatrix(!showMatrix); setShowJson(false) }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${showMatrix ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                  >
-                    <Grid3X3 className="w-4 h-4" />
-                    {showMatrix ? 'Voir les cartes' : 'Voir la matrice'}
-                  </button>
-                )}
-                <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
+              <button 
+                onClick={() => !isProcessing && setIsOpen(false)} 
+                disabled={isProcessing}
+                className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors disabled:opacity-30"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
               {isProcessing ? (
+                
+                // Loader simple
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <div className="relative mb-6">
                     <Loader2 className="w-16 h-16 text-opti-blue animate-spin" />
                     <MapPin className="w-6 h-6 text-opti-red absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                   </div>
                   <h4 className="text-xl font-bold text-opti-blue mb-2">Traitement en cours...</h4>
-                  <p className="text-slate-500 max-w-xs">Géocodage, regroupement et sauvegarde sécurisée dans Firebase.</p>
+                  <p className="text-slate-500 max-w-xs">Calcul des tournées et sauvegarde sécurisée.</p>
                 </div>
-              ) : showMatrix && matrixResult ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-bold text-slate-700">{matrixResult.points_count} points</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Calculé le {new Date(matrixResult.computed_at).toLocaleString('fr-FR')}</p>
-                    </div>
-                    {matrixResult.points_count > 10 && (
-                      <span className="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">
-                        Aperçu 10×10 sur {matrixResult.points_count}×{matrixResult.points_count}
-                      </span>
-                    )}
-                  </div>
-                  <div className="overflow-auto rounded-2xl border border-slate-200 bg-white">
-                    <table className="text-[10px] font-mono border-collapse min-w-full">
-                      <thead>
-                        <tr>
-                          <th className="sticky left-0 bg-slate-50 px-2 py-2 border-b border-r border-slate-200 text-slate-400 font-medium text-left min-w-[120px]">
-                            Départ → Arrivée
-                          </th>
-                          {matrixResult.points.slice(0, 10).map((p, j) => (
-                            <th key={j} className="px-3 py-2 border-b border-slate-200 text-slate-500 font-medium text-center min-w-[72px]" title={p.address}>
-                              <span className="block text-slate-400">{j}</span>
-                              <span className="block text-[9px] font-normal text-slate-300 truncate max-w-[68px]">{p.address.split(',')[0]}</span>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {matrixResult.points.slice(0, 10).map((p, i) => (
-                          <tr key={i} className="hover:bg-slate-50">
-                            <td className="sticky left-0 bg-white hover:bg-slate-50 px-2 py-2 border-b border-r border-slate-200 text-slate-600 font-medium whitespace-nowrap max-w-[160px] overflow-hidden text-ellipsis" title={p.address}>
-                              <span className="text-slate-400 mr-1">{i}</span>
-                              {p.address.split(',')[0]}
-                            </td>
-                            {matrixResult.duration_matrix[i].slice(0, 10).map((dur, j) => {
-                              const dist = matrixResult.distance_matrix[i][j]
-                              return (
-                                <td key={j} className={`px-3 py-2 border-b border-slate-100 text-center tabular-nums ${i === j ? 'bg-slate-50' : ''}`}>
-                                  {i === j ? (
-                                    <span className="text-slate-300">—</span>
-                                  ) : (
-                                    <>
-                                      <span className={`block font-bold ${dur < 1800 ? 'text-emerald-600' : dur < 3600 ? 'text-amber-600' : 'text-red-500'}`}>
-                                        {Math.round(dur / 60)} min
-                                      </span>
-                                      <span className="block text-[9px] text-slate-400 mt-0.5">
-                                        {(dist / 1000).toFixed(1)} km
-                                      </span>
-                                    </>
-                                  )}
-                                </td>
-                              )
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <p className="text-xs text-slate-400 text-center">
-                    <span className="inline-block w-2 h-2 bg-emerald-500 rounded-full mr-1" />{'< 30 min '}
-                    <span className="inline-block w-2 h-2 bg-amber-500 rounded-full mx-1 ml-3" />{'30–60 min '}
-                    <span className="inline-block w-2 h-2 bg-red-500 rounded-full mx-1 ml-3" />{'> 60 min'}
-                  </p>
-                </div>
-              ) : showJson ? (
-                <div className="bg-slate-900 rounded-2xl p-6 overflow-hidden">
-                  <pre className="text-xs text-green-400 font-mono overflow-auto max-h-[500px]">
-                    {JSON.stringify(result, null, 2)}
-                  </pre>
-                </div>
+
               ) : (
-                <div className="space-y-8">
+                <div className="space-y-8 animate-in fade-in duration-500">
+                  
+                  {/* Alertes d'adresses non localisées */}
                   {unlocated.length > 0 && (
                     <div className="bg-red-50 border border-red-100 rounded-2xl p-6">
                       <div className="flex items-center gap-3 text-opti-red mb-4">
@@ -349,83 +381,137 @@ export default function GenerateTourneeButton() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {result?.clusters.map((cluster) => (
-                      <div key={cluster.group_id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                          <span className="text-sm font-bold text-opti-blue uppercase tracking-wider">Groupe #{cluster.group_id}</span>
-                          <span className="text-[10px] font-bold bg-white text-slate-500 px-2 py-1 rounded-md border border-slate-200">
-                            {cluster.nodes.length} points
-                          </span>
-                        </div>
-                        <div className="p-5 space-y-3">
-                          {cluster.nodes.map((node) => (
-                            <div key={node.id} className="flex items-start gap-3">
-                              <div className="w-1.5 h-1.5 rounded-full bg-opti-red mt-1.5 shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-slate-700 truncate">{node.address}</p>
-                                <div className="flex gap-2 mt-1">
-                                  <span className="text-[10px] text-slate-400 font-medium">{node.pallets} palettes</span>
-                                  <span className="text-[10px] text-slate-400 font-medium">
-                                    {secondsToHHmm(node.time_window.start)} - {secondsToHHmm(node.time_window.end)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                  {/* Rapport d'Affrètement */}
+                  {affretement.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 shadow-sm">
+                      <div className="flex items-center gap-3 text-amber-700 mb-4">
+                        <AlertTriangle className="w-6 h-6" />
+                        <h4 className="text-lg font-bold font-display">À Affréter / Sous-traiter ({affretement.length} points)</h4>
                       </div>
-                    ))}
+
+                      {solverMessage && (
+                        <p className="text-sm text-amber-700/80 mb-5 font-medium bg-amber-100/50 p-3 rounded-lg border border-amber-100">
+                          {solverMessage}
+                        </p>
+                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {affretement.map((item, i) => {
+                          const point = session?.delivery_points.find(p => p.id === item.client_id)
+                          return (
+                            <div key={i} className="flex flex-col bg-white p-4 rounded-xl border border-amber-100 shadow-sm">
+                              <span className="text-sm font-bold text-slate-700 truncate mb-2">
+                                {point?.address || item.client_id}
+                              </span>
+                              <span className="text-xs font-bold text-amber-700 bg-amber-100/80 px-2.5 py-1 rounded-md w-fit">
+                                {formatRaisonRejet(item.raison_rejet)}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Routes Optimisées (Timeline Avancée) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {result?.clusters.map((cluster: any) => {
+                      
+                      const deliveryCount = cluster.nodes.filter((n: any) => n.step_type === 'DELIVERY' || !n.step_type).length;
+
+                      return (
+                        <div key={cluster.group_id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
+                          
+                          {/* Header du Véhicule */}
+                          <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                            <span className="text-sm font-bold text-opti-blue tracking-wider flex items-center gap-2">
+                              <Truck className="w-5 h-5 text-opti-red" />
+                              {cluster.vehicle_name || `Véhicule ${String(cluster.group_id).slice(0, 8)}`}
+                            </span>
+                            <span className="text-[10px] font-bold bg-white text-slate-500 px-2 py-1 rounded-md border border-slate-200 shadow-sm">
+                              {deliveryCount} livraisons
+                            </span>
+                          </div>
+
+                          {/* La Timeline (Ligne du temps) */}
+                          <div className="p-5 max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
+                            {cluster.nodes.map((node: any, idx: number) => {
+                              const stepType = node.step_type || 'DELIVERY';
+                              const { icon: Icon, color, bg, border } = getNodeStyle(stepType);
+                              
+                              const arrivalStr = formatMinutes(node.arrival_time);
+                              
+                              // CORRECTION JSX DU "0" SAUVAGE : on demande un VRAI booléen
+                              const hasDuration = node.action_duration > 0; 
+                              
+                              const departureStr = hasDuration ? formatMinutes(node.arrival_time + node.action_duration) : null;
+
+                              return (
+                                <div key={node.uid || idx} className="flex gap-4 group">
+                                  
+                                  {/* Colonne de gauche : Icône + Ligne */}
+                                  <div className="flex flex-col items-center">
+                                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 z-10 ${bg} ${color} ${border}`}>
+                                      <Icon className="w-4 h-4" />
+                                    </div>
+                                    {/* Ligne verticale */}
+                                    {idx !== cluster.nodes.length - 1 && (
+                                      <div className="w-0.5 min-h-[32px] flex-1 bg-slate-100 group-hover:bg-slate-200 transition-colors my-1" />
+                                    )}
+                                  </div>
+
+                                  {/* Colonne de droite : Détails */}
+                                  <div className={`flex-1 pb-6 pt-1.5 ${idx === cluster.nodes.length - 1 ? 'pb-0' : ''}`}>
+                                    <p className={`text-xs font-bold ${stepType === 'DELIVERY' ? 'text-slate-700' : 'text-slate-500'} truncate`} title={node.address}>
+                                      {node.address}
+                                    </p>
+                                    
+                                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                      {/* Horaire */}
+                                      <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                                        {arrivalStr} {hasDuration && `— ${departureStr} (${node.action_duration} min)`}
+                                      </span>
+                                      
+                                      {/* Palettes */}
+                                      {stepType === 'DELIVERY' && node.pallets && (
+                                        <span className="text-[10px] font-bold text-opti-blue bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                                          {node.pallets} palettes
+                                        </span>
+                                      )}
+
+                                      {/* Fenêtre Horaire */}
+                                      {stepType === 'DELIVERY' && node.time_window && (
+                                        <span className="text-[10px] font-medium text-slate-400">
+                                          Créneau : {node.time_window.start} - {node.time_window.end}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+
                 </div>
               )}
             </div>
 
             {/* Footer */}
-            <div className="px-8 py-6 border-t border-slate-100 flex items-center justify-between bg-white sticky bottom-0">
-              <button 
-                onClick={handleCopyJSON}
-                className="flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-opti-blue transition-colors"
-              >
-                {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                {copied ? 'JSON Copié' : 'Copier le JSON complet'}
-              </button>
-              
-              <div className="flex gap-3">
-                {matrixStatus === 'computing' && (
-                  <div className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-600 bg-blue-50 rounded-xl mr-2">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Matrice en calcul...
-                  </div>
-                )}
-                {matrixStatus === 'done' && (
-                  <div className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-emerald-600 bg-emerald-50 rounded-xl mr-2">
-                    <Grid3X3 className="w-3 h-3" />
-                    Matrice calculée
-                  </div>
-                )}
-                {matrixStatus === 'error' && (
-                  <div className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-orange-600 bg-orange-50 rounded-xl mr-2">
-                    <AlertCircle className="w-3 h-3" />
-                    Matrice non disponible
-                  </div>
-                )}
+            {!isProcessing && (
+              <div className="px-8 py-6 border-t border-slate-100 flex items-center justify-end bg-white sticky bottom-0">
                 <button 
                   onClick={() => setIsOpen(false)}
-                  className="px-6 py-3 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50 transition-colors"
+                  className="px-6 py-3 rounded-xl text-sm font-bold text-white bg-opti-blue hover:bg-slate-800 transition-colors shadow-md active:scale-95"
                 >
-                  Fermer
-                </button>
-                <button 
-                  disabled={isProcessing || !result}
-                  onClick={() => alert('Tournée envoyée au calcul !')}
-                  className="flex items-center gap-2 px-8 py-3 rounded-xl bg-opti-red text-white text-sm font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-100 disabled:opacity-40"
-                >
-                  <Send className="w-4 h-4" />
-                  Lancer l'optimisation
+                  Fermer le rapport
                 </button>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

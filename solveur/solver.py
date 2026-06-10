@@ -8,6 +8,9 @@ from models import OptimizationRequest
 
 logger = logging.getLogger(__name__)
 
+# La pénalité pour forcer le rechargement
+VEHICLE_ACTIVATION_PENALTY = 1000000 
+
 class Route:
     def __init__(self, vehicle, request: OptimizationRequest):
         self.vehicle = vehicle
@@ -51,13 +54,6 @@ class Route:
         accum_work = 0
         total_demand = 0
 
-        if generate_timeline:
-            self.timeline.append({
-                "stop_type": "DEPOT_START",
-                "client_id": self.request.nodes[current_node_idx].id,
-                "arrival_time": current_time // 60
-            })
-
         nodes_triggering_reload = set()
         temp_demand = 0
         for idx, n_idx in enumerate(self.nodes):
@@ -67,6 +63,25 @@ class Route:
                 temp_demand = node_demand
             else:
                 temp_demand += node_demand
+
+        # Calcul du temps de chargement initial au dépôt
+        initial_load_time = 0
+        for future_idx in range(len(self.nodes)):
+            if future_idx in nodes_triggering_reload:
+                break
+            initial_load_time += self.request.nodes[self.nodes[future_idx]].loading_time
+
+        if generate_timeline:
+            self.timeline.append({
+                "stop_type": "DEPOT_START",
+                "client_id": self.request.nodes[current_node_idx].id,
+                # CORRECTION : Arrondi mathématique exact
+                "arrival_time": int(round(current_time / 60)),
+                "action_duration": int(round(initial_load_time / 60))
+            })
+            
+        current_time += initial_load_time
+        accum_work += initial_load_time
 
         for idx, next_node_idx in enumerate(self.nodes):
             node = self.request.nodes[next_node_idx]
@@ -97,7 +112,12 @@ class Route:
                                                        (accum_work + transit_to_depot > self.request.max_continuous_work_seconds)):
                         current_time += self.request.break_duration_seconds
                         if generate_timeline:
-                            self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                            self.timeline.append({
+                                "stop_type": "BREAK", 
+                                "client_id": "PAUSE_RSE", 
+                                "arrival_time": int(round(current_time / 60)),
+                                "action_duration": int(round(self.request.break_duration_seconds / 60))
+                            })
                         accum_drive = 0
                         accum_work = 0
                         
@@ -110,14 +130,19 @@ class Route:
                         self.timeline.append({
                             "stop_type": "RELOAD", 
                             "client_id": self.request.nodes[depot_idx].id, 
-                            "arrival_time": current_time // 60,
-                            "loading_duration_min": dynamic_reload_time // 60
+                            "arrival_time": int(round(current_time / 60)),
+                            "action_duration": int(round(dynamic_reload_time / 60))
                         })
                         
                     if self.request.enforce_break and (accum_work + dynamic_reload_time > self.request.max_continuous_work_seconds):
                         current_time += self.request.break_duration_seconds
                         if generate_timeline:
-                            self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                            self.timeline.append({
+                                "stop_type": "BREAK", 
+                                "client_id": "PAUSE_RSE", 
+                                "arrival_time": int(round(current_time / 60)),
+                                "action_duration": int(round(self.request.break_duration_seconds / 60))
+                            })
                         accum_drive = 0
                         accum_work = 0
                         
@@ -139,7 +164,12 @@ class Route:
                                                (accum_work + transit_time > self.request.max_continuous_work_seconds)):
                 current_time += self.request.break_duration_seconds
                 if generate_timeline:
-                    self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                    self.timeline.append({
+                        "stop_type": "BREAK", 
+                        "client_id": "PAUSE_RSE", 
+                        "arrival_time": int(round(current_time / 60)),
+                        "action_duration": int(round(self.request.break_duration_seconds / 60))
+                    })
                 accum_drive = 0
                 accum_work = 0
 
@@ -153,7 +183,12 @@ class Route:
                     wait_time = node.time_window.start - current_time
                     if self.request.enforce_break and wait_time >= self.request.break_duration_seconds:
                         if generate_timeline and (not self.timeline or self.timeline[-1]["stop_type"] != "BREAK"):
-                            self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_ATTENTE", "arrival_time": current_time // 60})
+                            self.timeline.append({
+                                "stop_type": "BREAK", 
+                                "client_id": "PAUSE_ATTENTE", 
+                                "arrival_time": int(round(current_time / 60)),
+                                "action_duration": int(round(wait_time / 60))
+                            })
                         accum_drive = 0
                         accum_work = 0
                     current_time = node.time_window.start
@@ -162,13 +197,23 @@ class Route:
                     return {"status": "ERR_HORAIRE"}
 
             if generate_timeline:
-                self.timeline.append({"stop_type": "DELIVERY", "client_id": node.id, "arrival_time": current_time // 60})
+                self.timeline.append({
+                    "stop_type": "DELIVERY", 
+                    "client_id": node.id, 
+                    "arrival_time": int(round(current_time / 60)),
+                    "action_duration": int(round(node.unloading_time / 60)),
+                    "delivered_pallets": node.demand 
+                })
 
-            # --- UTILISATION DE UNLOADING_TIME POUR LE CLIENT ---
             if self.request.enforce_break and (accum_work + node.unloading_time > self.request.max_continuous_work_seconds):
                 current_time += self.request.break_duration_seconds
                 if generate_timeline:
-                    self.timeline.append({"stop_type": "BREAK", "client_id": "PAUSE_RSE", "arrival_time": current_time // 60})
+                    self.timeline.append({
+                        "stop_type": "BREAK", 
+                        "client_id": "PAUSE_RSE", 
+                        "arrival_time": int(round(current_time / 60)),
+                        "action_duration": int(round(self.request.break_duration_seconds / 60))
+                    })
                 accum_drive = 0
                 accum_work = 0
 
@@ -186,7 +231,8 @@ class Route:
                 self.timeline.append({
                     "stop_type": "BREAK",
                     "client_id": "PAUSE_RSE",
-                    "arrival_time": current_time // 60
+                    "arrival_time": int(round(current_time / 60)),
+                    "action_duration": int(round(self.request.break_duration_seconds / 60))
                 })
             accum_drive = 0
             accum_work = 0
@@ -198,7 +244,8 @@ class Route:
             self.timeline.append({
                 "stop_type": "DEPOT_END",
                 "client_id": self.request.nodes[end_idx].id,
-                "arrival_time": current_time // 60
+                "arrival_time": int(round(current_time / 60)),
+                "action_duration": 0
             })
 
         self.total_time = current_time
@@ -208,7 +255,6 @@ class Route:
             return {"status": "ERR_AMPLITUDE"}
 
         return {"status": "VALID"}
-
 
 class VRPOptimizer:
     def __init__(self, request: OptimizationRequest, allow_split_deliveries: bool = True):
@@ -245,13 +291,19 @@ class VRPOptimizer:
             max_cap = max(compatible_capacities, default=0)
             
             if max_cap > 0 and node.demand > max_cap:
-                num_full_trucks = node.demand // max_cap
+                num_full_trucks = int(node.demand // max_cap)
                 remainder = node.demand % max_cap
                 
                 for i in range(num_full_trucks):
                     sub_node = node.model_copy(deep=True)
                     sub_node.id = f"{node.id}_PART_{i+1}"
                     sub_node.demand = max_cap
+                    
+                    # CORRECTION : Temps proportionnel AVEC UN MINIMUM DE 1 MINUTE (60s)
+                    fraction = max_cap / node.demand
+                    sub_node.loading_time = max(60, int(node.loading_time * fraction))
+                    sub_node.unloading_time = max(60, int(node.unloading_time * fraction))
+                    
                     new_nodes.append(sub_node)
                     old_indices.append(idx)
                     current_new_idx += 1
@@ -260,6 +312,12 @@ class VRPOptimizer:
                     sub_node = node.model_copy(deep=True)
                     sub_node.id = f"{node.id}_PART_FINAL"
                     sub_node.demand = remainder
+                    
+                    # CORRECTION : Temps proportionnel AVEC UN MINIMUM DE 1 MINUTE
+                    fraction = remainder / node.demand
+                    sub_node.loading_time = max(60, int(node.loading_time * fraction))
+                    sub_node.unloading_time = max(60, int(node.unloading_time * fraction))
+                    
                     new_nodes.append(sub_node)
                     old_indices.append(idx)
                     current_new_idx += 1
@@ -282,6 +340,13 @@ class VRPOptimizer:
         for v in self.request.vehicles:
             v.start_node_idx = old_to_new_mapping[v.start_node_idx]
             v.end_node_idx = old_to_new_mapping[v.end_node_idx]
+
+    def _evaluate_routes_cost(self, routes: List[Route]) -> float:
+        cost = 0
+        for r in routes:
+            if r.nodes:
+                cost += r.total_distance + VEHICLE_ACTIVATION_PENALTY
+        return cost
 
     def _explore_vns_branch(self, seed_val: int, base_routes: List[Route], base_unperformed_report: List[Dict]) -> tuple:
         random.seed(seed_val)
@@ -323,7 +388,7 @@ class VRPOptimizer:
 
         shaken_routes = self._insert_nodes_regret(shaken_routes, nodes_to_reinsert, use_priority_multiplier=(max_unperformed_priority > 1))
         shaken_routes = self._variable_neighborhood_descent(shaken_routes)
-        shaken_distance = sum(r.total_distance for r in shaken_routes if r.nodes)
+        shaken_distance = self._evaluate_routes_cost(shaken_routes)
 
         new_unperformed_score = sum(
             self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
@@ -382,7 +447,7 @@ class VRPOptimizer:
         routes = self._variable_neighborhood_descent(routes)
         
         best_routes = [r.copy() for r in routes]
-        best_distance = sum(r.total_distance for r in best_routes if r.nodes)
+        best_distance = self._evaluate_routes_cost(best_routes)
 
         best_unperformed_score = sum(
             self.request.nodes[self._id_to_index(rep["client_id"])].priority_level 
@@ -461,6 +526,9 @@ class VRPOptimizer:
                         cloned = route.clone_and_insert(node_idx, pos)
                         if cloned.is_valid:
                             cost = cloned.total_distance
+                            if len(route.nodes) == 0:
+                                cost += VEHICLE_ACTIVATION_PENALTY
+                                
                             if cost < best_cost:
                                 second_best_cost = best_cost
                                 best_cost = cost
@@ -590,7 +658,15 @@ class VRPOptimizer:
                                 test_route2.recalculate(generate_timeline=False)
                                 
                                 if test_route1.is_valid and test_route2.is_valid:
-                                    if (test_route1.total_distance + test_route2.total_distance) < (route1.total_distance + route2.total_distance - 10):
+                                    current_cost = route1.total_distance + route2.total_distance
+                                    if len(route1.nodes) > 0 and len(test_route1.nodes) == 0: current_cost += VEHICLE_ACTIVATION_PENALTY
+                                    if len(route2.nodes) > 0 and len(test_route2.nodes) == 0: current_cost += VEHICLE_ACTIVATION_PENALTY
+                                    
+                                    new_cost = test_route1.total_distance + test_route2.total_distance
+                                    if len(test_route1.nodes) > 0 and len(route1.nodes) == 0: new_cost += VEHICLE_ACTIVATION_PENALTY
+                                    if len(test_route2.nodes) > 0 and len(route2.nodes) == 0: new_cost += VEHICLE_ACTIVATION_PENALTY
+
+                                    if new_cost < current_cost - 10:
                                         routes[r1_idx], routes[r2_idx] = test_route1, test_route2
                                         improved = True
                                         break
@@ -616,7 +692,15 @@ class VRPOptimizer:
                             test_route2 = route2.clone_and_insert(node_idx, pos2) if r1_idx != r2_idx else test_route1.clone_and_insert(node_idx, pos2 if pos2 < pos1 else pos2 - 1)
                             
                             if test_route1.is_valid and test_route2.is_valid:
-                                if (test_route1.total_distance + test_route2.total_distance) < (route1.total_distance + route2.total_distance - 10):
+                                current_cost = route1.total_distance + route2.total_distance
+                                if len(route1.nodes) > 0 and len(test_route1.nodes) == 0: current_cost += VEHICLE_ACTIVATION_PENALTY
+                                if len(route2.nodes) > 0 and len(test_route2.nodes) == 0: current_cost += VEHICLE_ACTIVATION_PENALTY
+                                
+                                new_cost = test_route1.total_distance + test_route2.total_distance
+                                if len(test_route1.nodes) > 0 and len(route1.nodes) == 0: new_cost += VEHICLE_ACTIVATION_PENALTY
+                                if len(test_route2.nodes) > 0 and len(route2.nodes) == 0: new_cost += VEHICLE_ACTIVATION_PENALTY
+
+                                if new_cost < current_cost - 10:
                                     routes[r1_idx], routes[r2_idx] = test_route1, test_route2
                                     improved = True
                                     break

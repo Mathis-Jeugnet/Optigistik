@@ -8,6 +8,9 @@ ors/graphs/
 # Logs ORS
 ors/logs/
 
+# Logs solver
+solveur/__pycache__/
+
 # Node
 node_modules/
 dist/
