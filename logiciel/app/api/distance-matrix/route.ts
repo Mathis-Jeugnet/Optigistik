@@ -8,25 +8,33 @@ const ORS_API_KEY = process.env.ORS_API_KEY
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { locations } = body
+  // On extrait les options (qui contiennent les avoid_polygons)
+  const { locations, options } = body
 
   if (!Array.isArray(locations) || locations.length < 2) {
     return NextResponse.json({ error: 'Minimum 2 points requis' }, { status: 400 })
   }
 
-const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (ORS_API_KEY) {
     headers['Authorization'] = ORS_API_KEY
+  }
+
+  const orsPayload: any = {
+    locations,
+    metrics: ['duration', 'distance'],
+    units: 'm',
+  };
+
+  // Si des options ont été envoyées (les incidents), on les ajoute au payload
+  if (options) {
+    orsPayload.options = options;
   }
 
   const orsResponse = await fetch(`${ORS_BASE_URL}/matrix/driving-hgv`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({
-      locations,
-      metrics: ['duration', 'distance'],
-      units: 'm',
-    }),
+    body: JSON.stringify(orsPayload),
   })
 
   if (!orsResponse.ok) {
