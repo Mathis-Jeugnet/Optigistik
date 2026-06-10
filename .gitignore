@@ -7,3 +7,6 @@ ors/graphs/
 
 # Logs ORS
 ors/logs/
+
+# Logs solver
+solveur/__pycache__/
