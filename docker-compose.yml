@@ -45,6 +45,8 @@ services:
     ports:
       - "8000:8000"
     restart: always
+    networks:
+      - optigistik
 
   ors:
     image: openrouteservice/openrouteservice:latest
