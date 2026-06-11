@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 
 export const getApiUrl = () => {
-  const injectedUrl = "__INJECTED_API_URL__";
+  const injectedUrl = "https://wild-geckos-mate.loca.lt";
   if (injectedUrl && !injectedUrl.startsWith("__")) {
     return injectedUrl;
   }
@@ -18,9 +18,17 @@ export const getApiUrl = () => {
 };
 
 export const fetchWithRetry = async (url: string, options: RequestInit = {}, retries = 6, delay = 1200): Promise<{ response: Response; data: any }> => {
+  const customHeaders = {
+    'Bypass-Tunnel-Reminder': 'true',
+    ...(options.headers || {}),
+  };
+  const updatedOptions = {
+    ...options,
+    headers: customHeaders,
+  };
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(url, updatedOptions);
       const contentType = response.headers.get('content-type') || '';
       
       // Si c'est du HTML (localtunnel warning, 502/504), on force la ré-exécution
