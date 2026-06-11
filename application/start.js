@@ -36,7 +36,7 @@ async function main() {
       const journeyPath = path.join(__dirname, 'src', 'screens', 'main', 'JourneyScreen.tsx');
       if (fs.existsSync(journeyPath)) {
         let journeyCode = fs.readFileSync(journeyPath, 'utf8');
-        journeyCode = journeyCode.replace(/const backendUrl = `https:\/\/.*\.loca\.lt\/transcribe_base64`;/g, `const backendUrl = \`${solverUrl}/transcribe_base64\`;`);
+        journeyCode = journeyCode.replace(/const backendUrl = `https?:\/\/[^`]+\/transcribe_base64`;/g, `const backendUrl = \`${solverUrl}/transcribe_base64\`;`);
         fs.writeFileSync(journeyPath, journeyCode);
         console.log('✏️  URL du solveur vocal injectée dans JourneyScreen.tsx');
       }
@@ -45,7 +45,7 @@ async function main() {
       const apiPath = path.join(__dirname, 'src', 'utils', 'api.ts');
       if (fs.existsSync(apiPath)) {
         let apiCode = fs.readFileSync(apiPath, 'utf8');
-        apiCode = apiCode.replace(/const injectedUrl = ".*";/g, `const injectedUrl = "${apiUrl}";`);
+        apiCode = apiCode.replace(/const injectedUrl = "[^"]*";/g, `const injectedUrl = "${apiUrl}";`);
         fs.writeFileSync(apiPath, apiCode);
         console.log('✏️  URL de l\'API Logiciel injectée dans api.ts');
       }

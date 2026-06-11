@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator } from 'react-native';
 import { getApiUrl, fetchWithRetry } from '../../utils/api';
+import { useActiveTour } from '../../utils/ActiveTourContext';
 
 export default function NewPasswordScreen({ route, navigation }: any) {
+  const { setDriverId } = useActiveTour();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,6 +41,7 @@ export default function NewPasswordScreen({ route, navigation }: any) {
       });
 
       if (response.ok && data.success) {
+        setDriverId(data.driverId);
         navigation.reset({
           index: 0,
           routes: [{ name: 'Main' }],

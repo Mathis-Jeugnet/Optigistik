@@ -85,6 +85,8 @@ export async function POST(request: Request) {
         return NextResponse.json({
           success: true,
           requiresOtp: false,
+          driverId: driverDoc.id,
+          email: email.trim().toLowerCase(),
           message: 'Connexion réussie.'
         });
 

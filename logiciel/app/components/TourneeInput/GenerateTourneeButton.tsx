@@ -285,7 +285,7 @@ export default function GenerateTourneeButton() {
               const baseId = stop.client_id ? stop.client_id.split('_PART_')[0] : '';
 
               if (stop.stop_type === 'DELIVERY') {
-                const point = session.delivery_points.find((p: any) => p.id === baseId);
+                const point = nodes.find((p: any) => p.id === baseId);
                 return {
                   ...point,
                   step_type: 'DELIVERY',
@@ -298,6 +298,8 @@ export default function GenerateTourneeButton() {
                 return {
                   step_type: 'RELOAD',
                   address: 'Retour Dépôt (Rechargement)',
+                  lat: originGeo?.lat || null,
+                  lng: originGeo?.lng || null,
                   arrival_time: stop.arrival_time,
                   action_duration: stop.action_duration || 0,
                   uid: `rel-${index}`
@@ -306,6 +308,8 @@ export default function GenerateTourneeButton() {
                 return {
                   step_type: 'DEPOT_START',
                   address: session.origin_node.address,
+                  lat: originGeo?.lat || null,
+                  lng: originGeo?.lng || null,
                   arrival_time: stop.arrival_time,
                   action_duration: stop.action_duration || 0,
                   uid: `start-${index}`
@@ -314,6 +318,8 @@ export default function GenerateTourneeButton() {
                 return {
                   step_type: 'DEPOT_END',
                   address: session.end_node.address,
+                  lat: endGeo?.lat || null,
+                  lng: endGeo?.lng || null,
                   arrival_time: stop.arrival_time,
                   action_duration: 0,
                   uid: `end-${index}`
