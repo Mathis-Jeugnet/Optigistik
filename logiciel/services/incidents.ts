@@ -17,7 +17,9 @@ export interface TrafficIncident {
   createdAt: string;
 }
 
+// Fonction utilitaire sécurisée pour la gestion des fuseaux horaires (Minuit exact)
 function parseDateLocal(dateStr: string): Date {
+  if (!dateStr) return new Date(0);
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d, 0, 0, 0, 0);
 }
@@ -38,7 +40,9 @@ export async function getIncidentsForDate(targetDateStr: string): Promise<Traffi
   const targetTime = targetDate.getTime();
   const targetDayOfWeek = targetDate.getDay(); 
 
+  // 1. Les incidents isolés de ce jour précis
   const q1 = query(collection(db, 'traffic_incidents'), where('date', '==', targetDateStr));
+  // 2. Les incidents récurrents (à filtrer ensuite)
   const q2 = query(collection(db, 'traffic_incidents'), where('recurrenceType', 'in', ['DAILY', 'WEEKLY']));
 
   const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
@@ -48,23 +52,36 @@ export async function getIncidentsForDate(targetDateStr: string): Promise<Traffi
 
   allDocs.forEach(d => {
     const inc = d.data() as TrafficIncident;
-    if (incidentMap.has(inc.id)) return; // Évite les doublons
+    
+    // SÉCURITÉ : Si l'incident est vieux et n'a pas de type, on force "NONE"
+    const recType = inc.recurrenceType || 'NONE'; 
+
+    if (incidentMap.has(inc.id)) return; // On évite les doublons
 
     const incStart = parseDateLocal(inc.date).getTime();
-    const incEnd = inc.endDate ? parseDateLocal(inc.endDate).getTime() : Infinity;
+    // Si pas de date de fin définie, la date de fin est égale à la date de début
+    const incEnd = inc.endDate ? parseDateLocal(inc.endDate).getTime() : incStart;
 
-    // L'incident ne s'applique que si la date ciblée est dans sa période de validité
+    // L'incident ne s'applique que si la date ciblée est dans sa période d'existence globale
     if (targetTime >= incStart && targetTime <= incEnd) {
-      if (inc.recurrenceType === 'DAILY' || inc.recurrenceType === 'NONE') {
-        // NONE s'applique uniquement si targetTime === incStart (géré implicitement car snap1)
-        if (inc.recurrenceType === 'NONE' && targetTime !== incStart) return;
+      
+      if (recType === 'NONE') {
+        // Une seule fois : doit correspondre exactement
+        if (targetTime === incStart) {
+          incidentMap.set(inc.id, inc);
+        }
+      } 
+      else if (recType === 'DAILY') {
+        // Tous les jours : s'applique obligatoirement puisque c'est dans la plage
         incidentMap.set(inc.id, inc);
-      } else if (inc.recurrenceType === 'WEEKLY') {
-        // WEEKLY s'applique uniquement si le jour ciblé est coché
+      } 
+      else if (recType === 'WEEKLY') {
+        // Hebdomadaire : s'applique uniquement si le jour ciblé a été coché
         if (inc.daysOfWeek && inc.daysOfWeek.includes(targetDayOfWeek)) {
           incidentMap.set(inc.id, inc);
         }
       }
+      
     }
   });
 

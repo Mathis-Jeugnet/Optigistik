@@ -4,6 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { geocodeAddress } from '@/services/geocoding'
 import { addGlobalIncident, getIncidentsForDate, removeGlobalIncident, updateGlobalIncident, TrafficIncident } from '@/services/incidents'
 import { useAddressAutocomplete } from '@/hooks/useAddressAutocomplete'
+// AJOUT DES IMPORTS MANQUANTS :
+import { getAffectedSessions } from '@/services/autoOptimizer'
+import { runOptimization } from '@/services/optimizationEngine'
+
 import { AlertTriangle, Trash2, Plus, ShieldAlert, Radio, Loader2, Calendar, Clock, CheckCircle, Pencil, X, Repeat } from 'lucide-react'
 
 const DAYS_OF_WEEK = [
@@ -32,7 +36,7 @@ export default function TrafficIncidentsPanel() {
   
   const [recurrenceType, setRecurrenceType] = useState<'NONE' | 'DAILY' | 'WEEKLY'>('NONE')
   const [incidentEndDate, setIncidentEndDate] = useState(todayStr)
-  const [selectedDays, setSelectedDays] = useState<number[]>([]) // NOUVEAU
+  const [selectedDays, setSelectedDays] = useState<number[]>([]) 
 
   const [isSearching, setIsSearching] = useState(false)
   const [resolvedGeo, setResolvedGeo] = useState<{lat: number, lng: number} | null>(null)
@@ -93,8 +97,9 @@ export default function TrafficIncidentsPanel() {
       alert("Veuillez sélectionner au moins un jour de la semaine."); return;
     }
 
+    setIsSearching(true);
     try {
-      const payload: Omit<TrafficIncident, 'id' | 'createdAt'> = {
+      const payload: any = {
         address: addressInput,
         lat: resolvedGeo.lat,
         lng: resolvedGeo.lng,
@@ -103,21 +108,40 @@ export default function TrafficIncidentsPanel() {
         date: incidentDate,
         time: incidentTime,
         endTime: incidentEndTime,
-        recurrenceType,
-        endDate: recurrenceType !== 'NONE' ? incidentEndDate : undefined,
-        daysOfWeek: recurrenceType === 'WEEKLY' ? selectedDays : undefined
+        recurrenceType
+      };
+
+      if (recurrenceType !== 'NONE') {
+        payload.endDate = incidentEndDate;
+      }
+      if (recurrenceType === 'WEEKLY') {
+        payload.daysOfWeek = selectedDays;
       }
 
       if (editingId) {
-        await updateGlobalIncident(editingId, payload); setEditingId(null)
+        await updateGlobalIncident(editingId, payload); 
+        setEditingId(null);
       } else {
-        await addGlobalIncident(payload)
+        await addGlobalIncident(payload);
+      }
+
+      const affectedSessions = await getAffectedSessions(incidentDate, incidentTime, incidentEndTime);
+
+      if (affectedSessions.length > 0) {
+        alert(`Attention: ${affectedSessions.length} tournée(s) impactée(s) détectée(s). Recalcul automatique en cours...`);
+        for (const session of affectedSessions) {
+           await runOptimization(session);
+        }
       }
 
       setAddressInput(''); setResolvedGeo(null); setRecurrenceType('NONE'); setSelectedDays([]);
       await loadIncidents(incidentDate)
+      
     } catch (err) {
-      alert("Erreur lors de l'enregistrement.")
+      console.error("Erreur Firebase:", err); 
+      alert("Erreur lors de l'enregistrement de l'incident.");
+    } finally {
+      setIsSearching(false);
     }
   }
 
