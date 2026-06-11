@@ -255,7 +255,7 @@ export default function JourneyScreen({ navigation }: any) {
   const sendAudioToBackend = async (uri: string) => {
     try {
       // Tunnel public garanti (tourne sur l'hôte Mac actuel)
-      const backendUrl = `https://smart-paws-wish.loca.lt/transcribe_base64`;
+      const backendUrl = `https://some-fans-cut.loca.lt/transcribe_base64`;
 
       // Convert audio file to Base64 to bypass all FormData/Boundary bugs
       const base64Audio = await FileSystem.readAsStringAsync(uri, {
@@ -357,7 +357,7 @@ export default function JourneyScreen({ navigation }: any) {
       const uri = demoRecording.getURI();
 
       if (uri) {
-        const backendUrl = `https://smart-paws-wish.loca.lt/transcribe_base64`;
+        const backendUrl = `https://some-fans-cut.loca.lt/transcribe_base64`;
         const base64Audio = await FileSystem.readAsStringAsync(uri, {
           encoding: 'base64',
         });
