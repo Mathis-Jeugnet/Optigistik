@@ -53,66 +53,61 @@ export default function LoginScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.container}
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        bounces={false}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContainer}
-          bounces={false}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.header}>
-            <Text style={styles.title}>Bonjour chauffeur</Text>
-            <Text style={styles.subtitle}>Connectez-vous à votre espace Optigistik</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Bonjour chauffeur</Text>
+          <Text style={styles.subtitle}>Connectez-vous à votre espace Optigistik</Text>
+        </View>
+
+        <View style={styles.form}>
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Adresse Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="jean.dupont@optigistik.com"
+              placeholderTextColor="#9ca3af"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              editable={!loading}
+            />
           </View>
 
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Adresse Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="jean.dupont@optigistik.com"
-                placeholderTextColor="#9ca3af"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                editable={!loading}
-              />
-            </View>
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Mot de passe</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Rentrer le mot de passe"
+              placeholderTextColor="#9ca3af"
+              value={tempPassword}
+              onChangeText={setTempPassword}
+              secureTextEntry
+              editable={!loading}
+            />
+          </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Mot de passe</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Rentrer le mot de passe"
-                placeholderTextColor="#9ca3af"
-                value={tempPassword}
-                onChangeText={setTempPassword}
-                secureTextEntry
-                editable={!loading}
-              />
-            </View>
+          {error && (
+            <Text style={styles.errorText}>{error}</Text>
+          )}
 
-            {error && (
-              <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={[styles.button, (!email || !tempPassword || loading) && styles.buttonDisabled]} 
+            onPress={handleLogin}
+            disabled={!email || !tempPassword || loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.buttonText}>Suivant</Text>
             )}
-
-            <TouchableOpacity 
-              style={[styles.button, (!email || !tempPassword || loading) && styles.buttonDisabled]} 
-              onPress={handleLogin}
-              disabled={!email || !tempPassword || loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.buttonText}>Suivant</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -122,14 +117,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
-  container: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
   scrollContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingVertical: 24,
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'ios' ? 80 : 40,
+    paddingBottom: 24,
   },
   header: {
     marginBottom: 40,
