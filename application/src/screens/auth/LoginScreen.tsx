@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator, ScrollView } from 'react-native';
 import { getApiUrl, fetchWithRetry } from '../../utils/api';
 import { useActiveTour } from '../../utils/ActiveTourContext';
 
@@ -54,58 +54,64 @@ export default function LoginScreen({ navigation }: any) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Bonjour chauffeur</Text>
-          <Text style={styles.subtitle}>Connectez-vous à votre espace Optigistik</Text>
-        </View>
-
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Adresse Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="jean.dupont@optigistik.com"
-              placeholderTextColor="#9ca3af"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!loading}
-            />
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Bonjour chauffeur</Text>
+            <Text style={styles.subtitle}>Connectez-vous à votre espace Optigistik</Text>
           </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Mot de passe</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Rentrer le mot de passe"
-              placeholderTextColor="#9ca3af"
-              value={tempPassword}
-              onChangeText={setTempPassword}
-              secureTextEntry
-              editable={!loading}
-            />
-          </View>
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Adresse Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="jean.dupont@optigistik.com"
+                placeholderTextColor="#9ca3af"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!loading}
+              />
+            </View>
 
-          {error && (
-            <Text style={styles.errorText}>{error}</Text>
-          )}
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Mot de passe</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Rentrer le mot de passe"
+                placeholderTextColor="#9ca3af"
+                value={tempPassword}
+                onChangeText={setTempPassword}
+                secureTextEntry
+                editable={!loading}
+              />
+            </View>
 
-          <TouchableOpacity 
-            style={[styles.button, (!email || !tempPassword || loading) && styles.buttonDisabled]} 
-            onPress={handleLogin}
-            disabled={!email || !tempPassword || loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.buttonText}>Suivant</Text>
+            {error && (
+              <Text style={styles.errorText}>{error}</Text>
             )}
-          </TouchableOpacity>
-        </View>
+
+            <TouchableOpacity 
+              style={[styles.button, (!email || !tempPassword || loading) && styles.buttonDisabled]} 
+              onPress={handleLogin}
+              disabled={!email || !tempPassword || loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.buttonText}>Suivant</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -119,7 +125,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 24,
+  },
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
+    paddingVertical: 24,
   },
   header: {
     marginBottom: 40,
