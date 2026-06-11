@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator, ScrollView } from 'react-native';
 import { getApiUrl, fetchWithRetry } from '../../utils/api';
 import { useActiveTour } from '../../utils/ActiveTourContext';
 
@@ -53,9 +53,10 @@ export default function LoginScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        bounces={false}
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Bonjour chauffeur</Text>
@@ -106,7 +107,7 @@ export default function LoginScreen({ navigation }: any) {
             )}
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -116,10 +117,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
-  container: {
-    flex: 1,
+  scrollContainer: {
+    flexGrow: 1,
     paddingHorizontal: 24,
-    justifyContent: 'center',
+    paddingTop: Platform.OS === 'ios' ? 80 : 40,
+    paddingBottom: 24,
   },
   header: {
     marginBottom: 40,

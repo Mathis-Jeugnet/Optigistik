@@ -255,7 +255,7 @@ export default function JourneyScreen({ navigation }: any) {
   const sendAudioToBackend = async (uri: string) => {
     try {
       // Tunnel public garanti (tourne sur l'hôte Mac actuel)
-      const backendUrl = `https://warm-places-accept.loca.lt/transcribe_base64`;
+      const backendUrl = `https://some-fans-cut.loca.lt/transcribe_base64`;
 
       // Convert audio file to Base64 to bypass all FormData/Boundary bugs
       const base64Audio = await FileSystem.readAsStringAsync(uri, {
@@ -357,7 +357,7 @@ export default function JourneyScreen({ navigation }: any) {
       const uri = demoRecording.getURI();
 
       if (uri) {
-        const backendUrl = `https://warm-places-accept.loca.lt/transcribe_base64`;
+        const backendUrl = `https://some-fans-cut.loca.lt/transcribe_base64`;
         const base64Audio = await FileSystem.readAsStringAsync(uri, {
           encoding: 'base64',
         });
@@ -775,7 +775,11 @@ export default function JourneyScreen({ navigation }: any) {
         </View>
 
         {deliveries.length > 0 && (
-          <View style={styles.currentDestCard}>
+          <TouchableOpacity 
+            style={styles.currentDestCard}
+            activeOpacity={0.9}
+            onPress={() => setDeliveriesModalVisible(true)}
+          >
             <View style={styles.destLeft}>
               <View style={[styles.logoPlaceholder, { backgroundColor: deliveries[0].color, borderWidth: deliveries[0].border ? 2 : 0, borderColor: deliveries[0].border }]}>
                 <Text style={[styles.logoText, { color: deliveries[0].textColor }]}>{deliveries[0].initial}</Text>
@@ -783,10 +787,10 @@ export default function JourneyScreen({ navigation }: any) {
               <Text style={styles.destName} numberOfLines={1} ellipsizeMode="tail">{deliveries[0].name}</Text>
             </View>
             <View style={styles.destRight}>
-              <Feather name="map-pin" size={14} color="#ffffff" style={{marginRight: 6}} />
-              <Text style={styles.destMetrics}>1.2 Km • 3 Mins</Text>
+              <Feather name="clock" size={14} color="#ffffff" style={{marginRight: 6}} />
+              <Text style={styles.destMetrics}>{deliveries[0].time}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
 
         <View style={styles.splitCard}>
@@ -804,7 +808,7 @@ export default function JourneyScreen({ navigation }: any) {
               </View>
             ))}
 
-            {deliveries.length > 4 && (
+            {deliveries.length > 1 && (
               <TouchableOpacity style={styles.voirPlusBtn} onPress={() => setDeliveriesModalVisible(true)}>
                 <Text style={styles.voirPlusText}>Voir plus</Text>
               </TouchableOpacity>
@@ -1170,6 +1174,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 8,
+  },
+  destRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  validateButtonCurrentCard: {
+    backgroundColor: '#10b981',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   validateButtonFull: {
     justifyContent: 'center',
