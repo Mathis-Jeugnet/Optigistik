@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 
 export const getApiUrl = () => {
-  const injectedUrl = "https://modern-mirrors-bathe.loca.lt";
+  const injectedUrl = "https://floppy-kiwis-fold.loca.lt";
   if (injectedUrl && !injectedUrl.startsWith("__")) {
     return injectedUrl;
   }

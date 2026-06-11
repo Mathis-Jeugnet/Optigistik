@@ -56,10 +56,29 @@ async function main() {
         shell: true
       });
 
+      const startTime = Date.now();
+
       expo.on('exit', (code) => {
-        ltSolver.kill();
-        ltApi.kill();
-        process.exit(code || 0);
+        const duration = Date.now() - startTime;
+        if (code !== 0 && duration < 15000) {
+          console.log('\n\x1b[31m⚠️ Le tunnel Expo (ngrok) a échoué (Ngrok requiert probablement un authtoken ou est bloqué).\x1b[0m');
+          console.log('\x1b[33m🔄 Lancement de secours d\'Expo en mode Local/LAN (port 8081)...\x1b[0m\n');
+          
+          const expoLocal = spawn('npx', ['expo', 'start', '--clear'], {
+            stdio: 'inherit',
+            shell: true
+          });
+          
+          expoLocal.on('exit', (localCode) => {
+            ltSolver.kill();
+            ltApi.kill();
+            process.exit(localCode || 0);
+          });
+        } else {
+          ltSolver.kill();
+          ltApi.kill();
+          process.exit(code || 0);
+        }
       });
     }
   }
