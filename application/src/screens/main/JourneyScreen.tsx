@@ -255,7 +255,7 @@ export default function JourneyScreen({ navigation }: any) {
   const sendAudioToBackend = async (uri: string) => {
     try {
       // Tunnel public garanti (tourne sur l'hôte Mac actuel)
-      const backendUrl = `https://afraid-dodos-design.loca.lt/transcribe_base64`;
+      const backendUrl = `https://smart-paws-wish.loca.lt/transcribe_base64`;
 
       // Convert audio file to Base64 to bypass all FormData/Boundary bugs
       const base64Audio = await FileSystem.readAsStringAsync(uri, {
@@ -357,7 +357,7 @@ export default function JourneyScreen({ navigation }: any) {
       const uri = demoRecording.getURI();
 
       if (uri) {
-        const backendUrl = `https://afraid-dodos-design.loca.lt/transcribe_base64`;
+        const backendUrl = `https://smart-paws-wish.loca.lt/transcribe_base64`;
         const base64Audio = await FileSystem.readAsStringAsync(uri, {
           encoding: 'base64',
         });
@@ -786,18 +786,9 @@ export default function JourneyScreen({ navigation }: any) {
               </View>
               <Text style={styles.destName} numberOfLines={1} ellipsizeMode="tail">{deliveries[0].name}</Text>
             </View>
-            <View style={styles.destRightContainer}>
-              <View style={styles.destRight}>
-                <Feather name="map-pin" size={14} color="#ffffff" style={{marginRight: 6}} />
-                <Text style={styles.destMetrics}>1.2 Km • 3 Mins</Text>
-              </View>
-              <TouchableOpacity 
-                style={styles.validateButtonCurrentCard}
-                onPress={() => setValidationModalVisible(true)}
-                activeOpacity={0.8}
-              >
-                <Feather name="check" size={18} color="#ffffff" />
-              </TouchableOpacity>
+            <View style={styles.destRight}>
+              <Feather name="clock" size={14} color="#ffffff" style={{marginRight: 6}} />
+              <Text style={styles.destMetrics}>{deliveries[0].time}</Text>
             </View>
           </TouchableOpacity>
         )}
