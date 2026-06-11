@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Archivo_Black, Open_Sans } from "next/font/google";
 import { AuthProvider } from "@/app/context/AuthContext";
+import { Providers } from "@/app/providers";
+import AccessibilityToolbar from "@/app/components/AccessibilityToolbar";
 import "./globals.css";
 
 const archivoBlack = Archivo_Black({
@@ -25,13 +27,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr">
+    <html lang="fr" suppressHydrationWarning>
       <body
         className={`${archivoBlack.variable} ${openSans.variable} font-sans antialiased`}
       >
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <Providers>
+          <AuthProvider>
+            {children}
+            <AccessibilityToolbar />
+          </AuthProvider>
+        </Providers>
       </body>
     </html>
   );
