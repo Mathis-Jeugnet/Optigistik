@@ -30,6 +30,9 @@ services:
     stdin_open: true
     ports:
       - "8081:8081"
+    volumes:
+      - ./application:/app
+      - /app/node_modules
     environment:
       - EXPO_USE_FAST_RESOLVER=true
       - CHOKIDAR_USEPOLLING=true
