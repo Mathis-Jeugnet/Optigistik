@@ -36,7 +36,7 @@ async function main() {
       const journeyPath = path.join(__dirname, 'src', 'screens', 'main', 'JourneyScreen.tsx');
       if (fs.existsSync(journeyPath)) {
         let journeyCode = fs.readFileSync(journeyPath, 'utf8');
-        journeyCode = journeyCode.replace(/const backendUrl = `https:\/\/.*\.loca\.lt\/transcribe_base64`;/g, `const backendUrl = \`${solverUrl}/transcribe_base64\`;`);
+        journeyCode = journeyCode.replace(/const backendUrl = `https?:\/\/[^`]+\/transcribe_base64`;/g, `const backendUrl = \`${solverUrl}/transcribe_base64\`;`);
         fs.writeFileSync(journeyPath, journeyCode);
         console.log('✏️  URL du solveur vocal injectée dans JourneyScreen.tsx');
       }
@@ -45,7 +45,7 @@ async function main() {
       const apiPath = path.join(__dirname, 'src', 'utils', 'api.ts');
       if (fs.existsSync(apiPath)) {
         let apiCode = fs.readFileSync(apiPath, 'utf8');
-        apiCode = apiCode.replace(/const injectedUrl = ".*";/g, `const injectedUrl = "${apiUrl}";`);
+        apiCode = apiCode.replace(/const injectedUrl = "[^"]*";/g, `const injectedUrl = "${apiUrl}";`);
         fs.writeFileSync(apiPath, apiCode);
         console.log('✏️  URL de l\'API Logiciel injectée dans api.ts');
       }
@@ -56,10 +56,29 @@ async function main() {
         shell: true
       });
 
+      const startTime = Date.now();
+
       expo.on('exit', (code) => {
-        ltSolver.kill();
-        ltApi.kill();
-        process.exit(code || 0);
+        const duration = Date.now() - startTime;
+        if (code !== 0 && duration < 15000) {
+          console.log('\n\x1b[31m⚠️ Le tunnel Expo (ngrok) a échoué (Ngrok requiert probablement un authtoken ou est bloqué).\x1b[0m');
+          console.log('\x1b[33m🔄 Lancement de secours d\'Expo en mode Local/LAN (port 8081)...\x1b[0m\n');
+          
+          const expoLocal = spawn('npx', ['expo', 'start', '--clear'], {
+            stdio: 'inherit',
+            shell: true
+          });
+          
+          expoLocal.on('exit', (localCode) => {
+            ltSolver.kill();
+            ltApi.kill();
+            process.exit(localCode || 0);
+          });
+        } else {
+          ltSolver.kill();
+          ltApi.kill();
+          process.exit(code || 0);
+        }
       });
     }
   }

@@ -2,6 +2,7 @@
 
 import { getAllVehicles } from '@/services/fleet'
 import { getDrivers } from '@/services/drivers'
+import { getIncidentsForDate } from '@/services/incidents'
 import { useState } from 'react'
 import { useDeliveryStore } from '@/stores/deliveryStore'
 import { geocodeAddress } from '@/services/geocoding'
@@ -36,7 +37,7 @@ function formatMinutes(minutes: number): string {
   return `${h.toString().padStart(2, '0')}h${m.toString().padStart(2, '0')}`;
 }
 
-function generateSessionSignature(session: any): string {
+function generateSessionSignature(session: any, activeIncidents: any[] = []): string {
   if (!session || !session.delivery_points) return '';
   
   const mappedPoints = session.delivery_points.map((p: any) => ({
@@ -53,10 +54,11 @@ function generateSessionSignature(session: any): string {
   const payloadToHash = {
     date: session.meta?.date,
     start_time: session.meta?.start_time,
-    vehicles: session.meta?.resources_active, // Gardé pour rétrocompatibilité
+    vehicles: session.meta?.resources_active,
     origin: session.origin_node?.address,
     end: session.end_node?.address,
-    points: mappedPoints
+    points: mappedPoints,
+    incidents: activeIncidents.map(i => i.id).sort()
   };
 
   return JSON.stringify(payloadToHash);
@@ -98,75 +100,90 @@ export default function GenerateTourneeButton() {
   const handleGenerate = async () => {
     if (!session) return
     setIsOpen(true)
-    
-    // 1. Vérification du cache pour éviter de recalculer inutilement
-    const currentSignature = generateSessionSignature(session);
-
-    if (localCache?.signature === currentSignature) {
-      setResult({ clusters: localCache.clusters });
-      setUnlocated(localCache.unlocated);
-      setAffretement(localCache.affretement);
-      setIsProcessing(false);
-      return;
-    }
-
-    const hasSessionClusters = (session.clusters?.length ?? 0) > 0;
-    const hasSessionAffretement = (session.affretement_report?.length ?? 0) > 0;
-
-    if (session.optimization_signature === currentSignature && (hasSessionClusters || hasSessionAffretement)) {
-      setResult({ clusters: session.clusters || [] });
-      setUnlocated(session.unlocated_points || []);
-      setAffretement(session.affretement_report || []);
-      setIsProcessing(false);
-      return; 
-    }
-
     setIsProcessing(true)
     setResult(null)
     setUnlocated([])
     setAffretement([])
     setSolverMessage(null)
 
-    const nodes: any[] = []
-    const failed: string[] = []
+    try {
+      const sessionDateStr = session.meta.date || new Date().toISOString().split('T')[0];
+      const sessionStartStr = session.meta.start_time || "08:00";
 
-    // 2. Géocodage des adresses
-    for (const point of session.delivery_points) {
-      const geo = await geocodeAddress(point.address)
-      if (geo) {
-        nodes.push({
-          ...point,
-          lat: geo.lat,
-          lng: geo.lng,
-          demand: point.pallets,
-          service_time: point.unloading_time_at_client * 60,
-          allowed_vehicle_types: point.allowed_vehicle_types || null,
-          required_skills: point.required_skills || null,
-          time_window: {
-            start: parseInt(point.time_window.start.split(':')[0]) * 3600 + parseInt(point.time_window.start.split(':')[1]) * 60,
-            end: parseInt(point.time_window.end.split(':')[0]) * 3600 + parseInt(point.time_window.end.split(':')[1]) * 60,
-          }
-        })
-      } else {
-        failed.push(point.address)
-      }
-    }
+      // 1. RÈGLE DU CHEVAUCHEMENT (OVERLAP)
+      const allDailyIncidents = await getIncidentsForDate(sessionDateStr);
+      const sessionStartSec = timeToSeconds(sessionStartStr);
+      const sessionEndSec = sessionStartSec + (11 * 3600); // Fin de tournée estimée
 
-    const [originGeo, endGeo] = await Promise.all([
-      geocodeAddress(session.origin_node.address),
-      geocodeAddress(session.end_node.address),
-    ])
-
-    const matrixPoints: MatrixPoint[] = []
-    if (originGeo) matrixPoints.push({ id: 'depot_origin', address: session.origin_node.address, lat: originGeo.lat, lng: originGeo.lng, role: 'origin' })
-    for (const node of nodes) matrixPoints.push({ id: node.id, address: node.address, lat: node.lat, lng: node.lng, role: 'delivery' })
-    if (endGeo) matrixPoints.push({ id: 'depot_end', address: session.end_node.address, lat: endGeo.lat, lng: endGeo.lng, role: 'end' })
-
-    if (matrixPoints.length >= 2) {
-      try {
-        const res = await generateAndSaveDistanceMatrix(session.id, matrixPoints);
+      const relevantIncidents = allDailyIncidents.filter(inc => {
+        const incStartSec = timeToSeconds(inc.time);
+        const incEndSec = timeToSeconds(inc.endTime || "23:59"); 
         
-        // 3. Récupération des ressources (Véhicules & Chauffeurs)
+        // Formule mathématique du chevauchement : DébutA <= FinB ET FinA >= DébutB
+        return (sessionStartSec <= incEndSec) && (sessionEndSec >= incStartSec);
+      });
+      
+      const currentSignature = generateSessionSignature(session, relevantIncidents);
+
+      if (localCache?.signature === currentSignature) {
+        setResult({ clusters: localCache.clusters });
+        setUnlocated(localCache.unlocated);
+        setAffretement(localCache.affretement);
+        setIsProcessing(false);
+        return;
+      }
+
+      const hasSessionClusters = (session.clusters?.length ?? 0) > 0;
+      const hasSessionAffretement = (session.affretement_report?.length ?? 0) > 0;
+
+      if (session.optimization_signature === currentSignature && (hasSessionClusters || hasSessionAffretement)) {
+        setResult({ clusters: session.clusters || [] });
+        setUnlocated(session.unlocated_points || []);
+        setAffretement(session.affretement_report || []);
+        setIsProcessing(false);
+        return; 
+      }
+
+      const nodes: any[] = []
+      const failed: string[] = []
+
+      // 3. Géocodage des adresses
+      for (const point of session.delivery_points) {
+        const geo = await geocodeAddress(point.address)
+        if (geo) {
+          nodes.push({
+            ...point,
+            lat: geo.lat,
+            lng: geo.lng,
+            demand: point.pallets,
+            service_time: point.unloading_time_at_client * 60,
+            allowed_vehicle_types: point.allowed_vehicle_types || null,
+            required_skills: point.required_skills || null,
+            time_window: {
+              start: parseInt(point.time_window.start.split(':')[0]) * 3600 + parseInt(point.time_window.start.split(':')[1]) * 60,
+              end: parseInt(point.time_window.end.split(':')[0]) * 3600 + parseInt(point.time_window.end.split(':')[1]) * 60,
+            }
+          })
+        } else {
+          failed.push(point.address)
+        }
+      }
+
+      const [originGeo, endGeo] = await Promise.all([
+        geocodeAddress(session.origin_node.address),
+        geocodeAddress(session.end_node.address),
+      ])
+
+      const matrixPoints: MatrixPoint[] = []
+      if (originGeo) matrixPoints.push({ id: 'depot_origin', address: session.origin_node.address, lat: originGeo.lat, lng: originGeo.lng, role: 'origin' })
+      for (const node of nodes) matrixPoints.push({ id: node.id, address: node.address, lat: node.lat, lng: node.lng, role: 'delivery' })
+      if (endGeo) matrixPoints.push({ id: 'depot_end', address: session.end_node.address, lat: endGeo.lat, lng: endGeo.lng, role: 'end' })
+
+      if (matrixPoints.length >= 2) {
+        
+        // 4. GÉNÉRATION DE MATRICE AVEC INCIDENTS
+        const res = await generateAndSaveDistanceMatrix(session.id, matrixPoints, relevantIncidents);
+        
         const [allVehicles, allDrivers] = await Promise.all([
           getAllVehicles(),
           getDrivers()
@@ -175,13 +192,13 @@ export default function GenerateTourneeButton() {
         const trulyAvailableVehicles = allVehicles.filter(v => {
           if (!v.is_active) return false;
           const inspectionDate = (v.inspection_date as any).toDate ? (v.inspection_date as any).toDate() : new Date(v.inspection_date);
-          if (inspectionDate <= new Date(session.meta.date)) return false;
+          if (inspectionDate <= new Date(sessionDateStr)) return false;
           return true; 
         });
 
         const solverPayload = buildSolverPayload(session, res, trulyAvailableVehicles);
         
-        // 4. Appel au solveur Python
+        // 5. Appel au solveur Python
         const solverResponse = await fetch("http://localhost:8000/api/optimize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -196,9 +213,7 @@ export default function GenerateTourneeButton() {
           
           const assignedDriverIds = new Set<string>();
           const driverAssignments: Record<string, any> = {};
-          const sessionDateStr = session.meta.date; 
 
-          // Fonction de vérification des congés/absences
           const isDriverAvailableOnDate = (driver: any) => {
             if (driver.status !== "DISPONIBLE") return false;
             if (driver.unavailabilities && driver.unavailabilities.length > 0) {
@@ -224,28 +239,25 @@ export default function GenerateTourneeButton() {
           const availableDriversToday = allDrivers.filter(isDriverAvailableOnDate);
           const tripsToSave: any[] = [];
 
-          // 5. Assignation intelligente des chauffeurs
           for (const v of optimizationResult.vehicles) {
             const tripStart = new Date(new Date(sessionDateStr).setSeconds(v.route[0].arrival_time * 60));
             const tripEnd = new Date(new Date(sessionDateStr).setSeconds(v.route[v.route.length - 1].arrival_time * 60));
 
             let assignedDriver = null;
 
-            // Priorité 1 : Chauffeur attitré au camion
             const potentialDrivers = availableDriversToday.filter(d => !assignedDriverIds.has(d.id) && (d.assignedVehicles || []).includes(v.vehicle_id));
             for (const d of potentialDrivers) {
-              const isBusy = await isDriverBusy(d.id, tripStart, tripEnd, session.id); // On exclut la session actuelle
+              const isBusy = await isDriverBusy(d.id, tripStart, tripEnd, session.id); 
               if (!isBusy) {
                 assignedDriver = d;
                 break;
               }
             }
 
-            // Priorité 2 : N'importe quel chauffeur libre
             if (!assignedDriver) {
               for (const d of availableDriversToday) {
                 if (!assignedDriverIds.has(d.id)) {
-                  const isBusy = await isDriverBusy(d.id, tripStart, tripEnd, session.id); // On exclut la session actuelle
+                  const isBusy = await isDriverBusy(d.id, tripStart, tripEnd, session.id); 
                   if (!isBusy) {
                     assignedDriver = d;
                     break;
@@ -270,11 +282,9 @@ export default function GenerateTourneeButton() {
             });
           }
 
-          // Nettoyage puis sauvegarde des trajets en BDD
           await clearSessionTrips(session.id);
           await saveVehicleTrips(tripsToSave);
 
-          // 6. Mapping des données pour l'interface UI
           const realClusters = optimizationResult.vehicles.map((v: any) => {
             const vehicleDb = allVehicles.find(veh => veh.id === v.vehicle_id);
             const vehicleName = vehicleDb?.plate || vehicleDb?.name || v.vehicle_id;
@@ -285,7 +295,7 @@ export default function GenerateTourneeButton() {
               const baseId = stop.client_id ? stop.client_id.split('_PART_')[0] : '';
 
               if (stop.stop_type === 'DELIVERY') {
-                const point = session.delivery_points.find((p: any) => p.id === baseId);
+                const point = nodes.find((p: any) => p.id === baseId);
                 return {
                   ...point,
                   step_type: 'DELIVERY',
@@ -298,6 +308,8 @@ export default function GenerateTourneeButton() {
                 return {
                   step_type: 'RELOAD',
                   address: 'Retour Dépôt (Rechargement)',
+                  lat: originGeo?.lat || null,
+                  lng: originGeo?.lng || null,
                   arrival_time: stop.arrival_time,
                   action_duration: stop.action_duration || 0,
                   uid: `rel-${index}`
@@ -306,6 +318,8 @@ export default function GenerateTourneeButton() {
                 return {
                   step_type: 'DEPOT_START',
                   address: session.origin_node.address,
+                  lat: originGeo?.lat || null,
+                  lng: originGeo?.lng || null,
                   arrival_time: stop.arrival_time,
                   action_duration: stop.action_duration || 0,
                   uid: `start-${index}`
@@ -314,6 +328,8 @@ export default function GenerateTourneeButton() {
                 return {
                   step_type: 'DEPOT_END',
                   address: session.end_node.address,
+                  lat: endGeo?.lat || null,
+                  lng: endGeo?.lng || null,
                   arrival_time: stop.arrival_time,
                   action_duration: 0,
                   uid: `end-${index}`
@@ -342,7 +358,6 @@ export default function GenerateTourneeButton() {
 
           const newAffretementReport = optimizationResult.rapport_affretement || [];
 
-          // Mise à jour de la session globale Firebase
           await updateDoc(doc(db, 'delivery_sessions', session.id), {
             status: "VALIDATED",
             clusters: realClusters,
@@ -380,15 +395,16 @@ export default function GenerateTourneeButton() {
           setResult({ clusters: realClusters });
           setUnlocated(failed);
           setIsProcessing(false);
+        } else {
+           setIsProcessing(false);
         }
-
-      } catch (err) {
-        console.error(err);
-        alert("Erreur lors de l'optimisation. Veuillez réessayer.");
+      } else {
         setIsProcessing(false);
       }
-    } else {
-        setIsProcessing(false);
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de l'optimisation. Veuillez réessayer.");
+      setIsProcessing(false);
     }
   }
 
@@ -433,7 +449,7 @@ export default function GenerateTourneeButton() {
                     <MapPin className="w-6 h-6 text-opti-red absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                   </div>
                   <h4 className="text-xl font-bold text-opti-blue mb-2">Traitement en cours...</h4>
-                  <p className="text-slate-500 max-w-xs">Calcul des tournées et assignation des chauffeurs.</p>
+                  <p className="text-slate-500 max-w-xs">Calcul des tournées et intégration du trafic...</p>
                 </div>
               ) : (
                 <div className="space-y-8 animate-in fade-in duration-500">
@@ -500,7 +516,6 @@ export default function GenerateTourneeButton() {
                                 {cluster.vehicle_name || `Véhicule ${String(cluster.group_id).slice(0, 8)}`}
                               </span>
                               
-                              {/* Alerte Visuelle si aucun chauffeur n'a été trouvé */}
                               {cluster.driver_id ? (
                                 <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
                                   <User className="w-3.5 h-3.5" />
