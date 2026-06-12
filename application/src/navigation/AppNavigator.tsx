@@ -13,6 +13,7 @@ import NewPasswordScreen from '../screens/auth/NewPasswordScreen';
 import JourneyScreen from '../screens/main/JourneyScreen';
 import DeliveryScreen from '../screens/main/DeliveryScreen';
 import ToursScreen from '../screens/main/ToursScreen';
+import PlanningScreen from '../screens/main/PlanningScreen';
 
 import { ActiveTourProvider } from '../utils/ActiveTourContext';
 
@@ -53,6 +54,8 @@ function MainTabNavigator() {
             iconName = 'map';
           } else if (route.name === 'Mes Tournées') {
             iconName = 'truck';
+          } else if (route.name === 'Planning') {
+            iconName = 'calendar';
           }
           return <Feather name={iconName} size={20} color={color} />;
         },
@@ -60,6 +63,7 @@ function MainTabNavigator() {
     >
       <Tab.Screen name="Trajet" component={JourneyScreen} options={{ title: 'GPS / Carte' }} />
       <Tab.Screen name="Mes Tournées" component={ToursScreen} options={{ title: 'Mes Tournées' }} />
+      <Tab.Screen name="Planning" component={PlanningScreen} options={{ title: 'Planning' }} />
     </Tab.Navigator>
   );
 }
