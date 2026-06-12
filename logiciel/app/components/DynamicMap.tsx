@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTheme } from "next-themes";
 import { MapContainer, TileLayer, useMap, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -103,7 +104,7 @@ function RecenterButton({ position }: { position: L.LatLngExpression }) {
 
   return (
     <div 
-      className="absolute bottom-4 left-4 bg-white/95 backdrop-blur p-2.5 rounded-lg shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-gray-200 z-[1000] cursor-pointer hover:bg-gray-50 transition-all pointer-events-auto group"
+      className="absolute bottom-4 left-4 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur p-2.5 rounded-lg shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-gray-200 z-[1000] cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2c2c2e] transition-all pointer-events-auto group"
       onClick={handleRecenter}
     >
       <div className="text-xs font-bold text-opti-blue flex items-center gap-2">
@@ -189,7 +190,11 @@ export default function DynamicMap({ isFullScreen, activeSessions = [], trafficI
   const [selectedSessionId, setSelectedSessionId] = useState<string>("all");
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("all");
   const [routesToRender, setRoutesToRender] = useState<any[]>([]);
-  const [showTraffic, setShowTraffic] = useState(true); // calque infos routières (incidents Bison Futé)
+  const [showTraffic, setShowTraffic] = useState(true);
+  const [mounted, setMounted] = useState(false);
+  const { resolvedTheme } = useTheme();
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted && resolvedTheme === "dark"; // calque infos routières (incidents Bison Futé)
   
   const centerPosition: L.LatLngExpression = [46.2276, 2.2137];
   const colors = ["#0ea5e9", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
@@ -302,12 +307,16 @@ export default function DynamicMap({ isFullScreen, activeSessions = [], trafficI
       <RecenterButton position={centerPosition} />
 
       <TileLayer
+        key={isDark ? "dark" : "light"}
         attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>, &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a>'
-        url="https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
+        url={isDark
+          ? "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png"
+          : "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
+        }
       />
       
       {/* Panneaux de filtres sur la carte */}
-      <div className="absolute top-4 left-16 z-[1000] bg-white rounded-lg shadow-md border border-gray-200 flex flex-col sm:flex-row divide-y sm:divide-y-0 sm:divide-x divide-gray-100 overflow-hidden">
+      <div className="absolute top-4 left-16 z-[1000] bg-white dark:bg-[#1c1c1e] rounded-lg shadow-md border border-gray-200 flex flex-col sm:flex-row divide-y sm:divide-y-0 sm:divide-x divide-gray-100 dark:divide-gray-700 overflow-hidden">
 
         {/* Calque "Infos routières" : afficher/masquer les incidents trafic pour bien voir les tournées */}
         <button

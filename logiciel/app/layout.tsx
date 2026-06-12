@@ -3,6 +3,7 @@ import { Archivo_Black, Open_Sans } from "next/font/google";
 import { AuthProvider } from "@/app/context/AuthContext";
 import { Providers } from "@/app/providers";
 import AccessibilityToolbar from "@/app/components/AccessibilityToolbar";
+import SettingsApplier from "@/app/components/SettingsApplier";
 import "./globals.css";
 
 const archivoBlack = Archivo_Black({
@@ -33,6 +34,7 @@ export default function RootLayout({
       >
         <Providers>
           <AuthProvider>
+            <SettingsApplier />
             {children}
             <AccessibilityToolbar />
           </AuthProvider>

@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { doc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { useA11y } from '@/app/context/A11yContext';
 
 const FONT_STEPS = [75, 100, 125, 150, 175, 200];
@@ -74,16 +76,16 @@ export default function AccessibilityToolbar() {
   });
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end">
+    <div className="fixed top-6 right-6 z-[100] flex flex-col items-end">
       {/* Panel */}
       <div
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`absolute bottom-16 right-0 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100
-          transition-all duration-200 ease-out origin-bottom-right
+        className={`absolute top-16 right-0 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100
+          transition-all duration-200 ease-out origin-top-right
           ${isOpen
             ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
-            : 'opacity-0 translate-y-2 scale-95 pointer-events-none'
+            : 'opacity-0 -translate-y-2 scale-95 pointer-events-none'
           }`}
         role="dialog"
         aria-label="Options d'accessibilité"
@@ -187,7 +189,11 @@ export default function AccessibilityToolbar() {
               ].map(({ value, label, title }) => (
                 <button
                   key={value}
-                  onClick={() => setTheme(value)}
+                  onClick={() => {
+                    setTheme(value);
+                    const uid = auth.currentUser?.uid;
+                    if (uid) updateDoc(doc(db, "users", uid), { "settings.theme": value }).catch(() => {});
+                  }}
                   title={title}
                   className={`flex-1 py-1.5 rounded-lg transition-all text-sm font-medium ${
                     theme === value

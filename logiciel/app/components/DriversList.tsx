@@ -41,23 +41,19 @@ export default function DriversList({ onSelectDriver }: DriversListProps) {
   if (drivers.length === 0) {
     return (
       <div className="bg-white rounded-3xl p-12 shadow-sm border border-gray-100 text-center">
-        <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
-          <Users className="w-8 h-8 text-slate-400" />
+        <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-gray-100">
+          <Users className="w-8 h-8 text-gray-400" />
         </div>
-        <p className="text-slate-500 font-semibold text-sm">Aucun conducteur enregistré. Ajoutez-en un pour commencer.</p>
+        <p className="text-gray-500 font-semibold text-sm">Aucun conducteur enregistré. Ajoutez-en un pour commencer.</p>
       </div>
     );
   }
 
   return (
     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
-            <Users className="w-5 h-5 text-opti-blue" />
-          </div>
-          <h2 className="text-xl font-bold text-opti-blue font-display">Liste des Conducteurs</h2>
-        </div>
+      <div className="flex items-center gap-2 mb-5">
+        <Users className="w-5 h-5 text-opti-blue" />
+        <h2 className="text-lg font-bold text-opti-blue font-display">Liste des Conducteurs</h2>
       </div>
 
       <div className="overflow-x-auto">

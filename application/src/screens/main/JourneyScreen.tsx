@@ -7,9 +7,11 @@ import * as Location from 'expo-location';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
+import { useActiveTour } from '../../utils/ActiveTourContext';
 
-export default function JourneyScreen() {
+export default function JourneyScreen({ navigation }: any) {
   const webViewRef = useRef<WebView>(null);
+  const { activeTour } = useActiveTour();
   
   // Modals state
   const [isReportModalVisible, setReportModalVisible] = useState(false);
@@ -33,23 +35,121 @@ export default function JourneyScreen() {
   const isLoopRunningRef = useRef<boolean>(false);
 
   // Deliveries state
-  const [deliveries, setDeliveries] = useState([
-    { id: '1', name: 'Carrefour Market', initial: 'C', color: '#ffffff', textColor: '#ef4444', time: 'En cours', coords: [45.7468, 4.8366] },
-    { id: '2', name: 'Picard', initial: 'P', color: '#0ea5e9', textColor: '#ffffff', time: '≈ 09h32', coords: [45.7416, 4.8415] },
-    { id: '3', name: 'XPO Logistics', initial: 'X', color: '#dc2626', textColor: '#ffffff', time: '≈ 10h22', coords: [45.7435, 4.8510] },
-    { id: '4', name: "Monop'", initial: 'M', color: '#ef4444', textColor: '#ffffff', time: '≈ 13h16', coords: [45.7500, 4.8450], border: '#ffffff' },
-    { id: '5', name: 'Franprix', initial: 'F', color: '#f97316', textColor: '#ffffff', time: '≈ 14h57', coords: [45.7550, 4.8400] },
-    { id: '6', name: 'Intermarché', initial: 'I', color: '#1f2937', textColor: '#ffffff', time: '≈ 16h24', coords: [45.7600, 4.8350] },
-    { id: '7', name: 'U Express', initial: 'U', color: '#ffffff', textColor: '#dc2626', time: '≈ 17h47', coords: [45.7650, 4.8300], border: '#dc2626' },
-    { id: '8', name: 'Biocoop', initial: 'B', color: '#15803d', textColor: '#ffffff', time: '≈ 19h33', coords: [45.7700, 4.8250] }
-  ]);
+  const [deliveries, setDeliveries] = useState<any[]>([]);
+
+  const [resolvedNodes, setResolvedNodes] = useState<any[]>([]);
+  const [isMapReady, setIsMapReady] = useState(false);
+
+  const geocodeAddress = async (address: string): Promise<[number, number] | null> => {
+    if (!address || address.trim() === '' || address.includes('Pause') || address.includes('Retour')) return null;
+    try {
+      const query = encodeURIComponent(address.trim());
+      const url = `https://data.geopf.fr/geocodage/search?q=${query}&limit=1`;
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        const [lng, lat] = data.features[0].geometry.coordinates;
+        return [lat, lng];
+      }
+    } catch (e) {
+      console.error("Geocoding failed on mobile:", e);
+    }
+    return null;
+  };
 
   useEffect(() => {
-    if (webViewRef.current && deliveries.length > 0) {
-      const stopsArray = deliveries.map(d => `[${d.coords[0]}, ${d.coords[1]}]`).join(',');
-      webViewRef.current.injectJavaScript(`window.updateStops([${stopsArray}]); true;`);
+    if (!activeTour || !activeTour.nodes) {
+      setResolvedNodes([]);
+      return;
     }
-  }, [deliveries]);
+
+    const resolveAllNodes = async () => {
+      let depotCoords: [number, number] | null = null;
+      
+      const geocoded = await Promise.all(
+        activeTour.nodes.map(async (node: any) => {
+          if (typeof node.lat === 'number' && typeof node.lng === 'number' && node.lat !== null && node.lng !== null) {
+            if (node.step_type === 'DEPOT_START' || node.step_type === 'DEPOT_END') {
+              depotCoords = [node.lat, node.lng];
+            }
+            return node;
+          }
+
+          if (node.address && !node.address.includes('Pause') && !node.address.includes('Retour Dépôt')) {
+            const coords = await geocodeAddress(node.address);
+            if (coords) {
+              if (node.step_type === 'DEPOT_START' || node.step_type === 'DEPOT_END') {
+                depotCoords = coords;
+              }
+              return {
+                ...node,
+                lat: coords[0],
+                lng: coords[1]
+              };
+            }
+          }
+          return node;
+        })
+      );
+
+      const finalNodes = geocoded.map((node: any) => {
+        if (node.step_type === 'RELOAD' || node.step_type === 'DEPOT_START' || node.step_type === 'DEPOT_END') {
+          if ((typeof node.lat !== 'number' || node.lat === null) && depotCoords) {
+            return {
+              ...node,
+              lat: depotCoords[0],
+              lng: depotCoords[1]
+            };
+          }
+        }
+        return node;
+      });
+
+      setResolvedNodes(finalNodes);
+    };
+
+    resolveAllNodes();
+  }, [activeTour]);
+
+  useEffect(() => {
+    if (resolvedNodes && resolvedNodes.length > 0) {
+      const formatTime = (minutes: number) => {
+        if (typeof minutes !== 'number' || isNaN(minutes)) return '--:--';
+        const h = Math.floor(minutes / 60);
+        const m = Math.floor(minutes % 60);
+        return `${h.toString().padStart(2, '0')}h${m.toString().padStart(2, '0')}`;
+      };
+
+      const deliveryNodes = resolvedNodes.filter((n: any) => n.step_type === 'DELIVERY' || !n.step_type);
+      const mapped = deliveryNodes.map((node: any, idx: number) => {
+        const name = node.address ? node.address.split(',')[0].trim() : 'Client';
+        return {
+          id: node.id || `stop-${idx}`,
+          name: name,
+          initial: name.charAt(0).toUpperCase(),
+          color: '#ffffff',
+          textColor: '#ef4444',
+          time: `≈ ${formatTime(node.arrival_time)}`,
+          coords: [node.lat, node.lng],
+          border: '#ef4444'
+        };
+      });
+      setDeliveries(mapped);
+    } else {
+      setDeliveries([]);
+    }
+  }, [resolvedNodes]);
+
+  useEffect(() => {
+    if (isMapReady && webViewRef.current && resolvedNodes && resolvedNodes.length > 0) {
+      const validNodes = resolvedNodes.filter((n: any) => typeof n.lat === 'number' && typeof n.lng === 'number' && n.lat !== null && n.lng !== null);
+      if (validNodes.length > 0) {
+        const stopsArray = validNodes.map(n => `[${n.lat}, ${n.lng}]`).join(',');
+        webViewRef.current.injectJavaScript(`window.updateStops([${stopsArray}]); true;`);
+      }
+    }
+  }, [isMapReady, resolvedNodes, deliveries]);
 
   // Chat state
   const [chatMessage, setChatMessage] = useState('');
@@ -155,7 +255,7 @@ export default function JourneyScreen() {
   const sendAudioToBackend = async (uri: string) => {
     try {
       // Tunnel public garanti (tourne sur l'hôte Mac actuel)
-      const backendUrl = `https://cyan-jokes-camp.loca.lt/transcribe_base64`;
+      const backendUrl = `https://petite-tigers-fry.loca.lt/transcribe_base64`;
 
       // Convert audio file to Base64 to bypass all FormData/Boundary bugs
       const base64Audio = await FileSystem.readAsStringAsync(uri, {
@@ -257,7 +357,7 @@ export default function JourneyScreen() {
       const uri = demoRecording.getURI();
 
       if (uri) {
-        const backendUrl = `https://cyan-jokes-camp.loca.lt/transcribe_base64`;
+        const backendUrl = `https://petite-tigers-fry.loca.lt/transcribe_base64`;
         const base64Audio = await FileSystem.readAsStringAsync(uri, {
           encoding: 'base64',
         });
@@ -304,7 +404,7 @@ export default function JourneyScreen() {
     } finally {
       isLoopRunningRef.current = false;
       if (demoLoopRef.current) {
-        setTimeout(startDemoLoop, 200); // reduced delay for faster looping
+        setTimeout(startDemoLoop, 200);
       }
     }
   };
@@ -320,10 +420,10 @@ export default function JourneyScreen() {
         body { padding: 0; margin: 0; overflow: hidden; background-color: #f3f4f6; }
         #map-wrapper { width: 100vw; height: 100vh; position: absolute; overflow: hidden; }
         #map { 
-          width: 200vw; 
-          height: 200vh; 
-          left: -50vw; 
-          top: -50vh; 
+          width: 150vw; 
+          height: 150vh; 
+          left: -25vw; 
+          top: -25vh; 
           position: absolute; 
           transition: transform 0.5s ease-out;
         }
@@ -335,21 +435,40 @@ export default function JourneyScreen() {
         <div id="map"></div>
       </div>
       <script>
-        var map = L.map('map', { zoomControl: false }).setView([45.745, 4.84], 14);
+        var map = L.map('map', {
+          zoomControl: false,
+          inertia: true,
+          inertiaDeceleration: 1500,
+          inertiaMaxSpeed: Infinity,
+          easeLinearity: 0.1,
+          zoomSnap: 0,
+          zoomDelta: 0.5,
+          wheelDebounceTime: 40,
+          tap: true
+        }).setView(${(() => {
+          if (resolvedNodes && resolvedNodes.length > 0) {
+            const firstValidNode = resolvedNodes.find((n: any) => typeof n.lat === 'number' && typeof n.lng === 'number' && n.lat !== null && n.lng !== null);
+            if (firstValidNode) {
+              return `[${firstValidNode.lat}, ${firstValidNode.lng}]`;
+            }
+          }
+          return `[48.8566, 2.3522]`;
+        })()}, 14);
         
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
           maxZoom: 19
         }).addTo(map);
 
         var stops = [
-          [45.7468, 4.8366],
-          [45.7416, 4.8415],
-          [45.7435, 4.8510],
-          [45.7500, 4.8450],
-          [45.7550, 4.8400],
-          [45.7600, 4.8350],
-          [45.7650, 4.8300],
-          [45.7700, 4.8250]
+          ${(() => {
+            if (resolvedNodes && resolvedNodes.length > 0) {
+              const validNodes = resolvedNodes.filter((n: any) => typeof n.lat === 'number' && typeof n.lng === 'number' && n.lat !== null && n.lng !== null);
+              if (validNodes.length > 0) {
+                return validNodes.map(n => `[${n.lat}, ${n.lng}]`).join(',\n          ');
+              }
+            }
+            return '';
+          })()}
         ];
 
         var routePolyline = null;
@@ -413,7 +532,15 @@ export default function JourneyScreen() {
           iconAnchor: [20, 20]
         });
         
-        var userMarker = L.marker([45.7475, 4.8375], { icon: currentLocIcon, zIndexOffset: 1000 }).addTo(map);
+        var userMarker = L.marker(${(() => {
+          if (resolvedNodes && resolvedNodes.length > 0) {
+            const firstValidNode = resolvedNodes.find((n: any) => typeof n.lat === 'number' && typeof n.lng === 'number' && n.lat !== null && n.lng !== null);
+            if (firstValidNode) {
+              return `[${firstValidNode.lat}, ${firstValidNode.lng}]`;
+            }
+          }
+          return `[48.8566, 2.3522]`;
+        })()}, { icon: currentLocIcon, zIndexOffset: 1000 }).addTo(map);
 
         window.updateLocation = function(lat, lng) {
           if (userMarker) {
@@ -447,24 +574,16 @@ export default function JourneyScreen() {
         window.updateHeading = function(heading, isGps) {
           if (heading === null || heading === undefined) return;
           if (!isGps && isMoving) return; 
-          
-          if (isGps) {
-            isMoving = true;
-            clearTimeout(movingTimeout);
-            movingTimeout = setTimeout(function() { isMoving = false; }, 2000);
+          currentHeading = heading;
+          var userHeadingEl = document.getElementById('user-heading');
+          if (userHeadingEl) {
+            userHeadingEl.style.transform = 'rotate(' + heading + 'deg)';
           }
-          
-          var headingEl = document.getElementById("user-heading");
-          if (headingEl) {
-            var diff = heading - (currentHeading % 360);
-            if (diff < -180) diff += 360;
-            if (diff > 180) diff -= 360;
-            currentHeading += diff;
-            headingEl.style.transform = "rotate(" + currentHeading + "deg)";
-            
-            if (currentRotationMode === 'HEADING_UP') {
-              var mapEl = document.getElementById('map');
-              mapEl.style.transform = 'rotate(' + (-currentHeading) + 'deg)';
+          if (currentRotationMode === 'HEADING_UP') {
+            var mapEl = document.getElementById('map');
+            mapEl.style.transform = 'rotate(' + (-heading) + 'deg)';
+            if (userMarker) {
+              map.setView(userMarker.getLatLng(), map.getZoom(), { animate: true, duration: 0.5 });
             }
           }
         };
@@ -477,8 +596,9 @@ export default function JourneyScreen() {
 
         window.addIncidentMarker = function(type, emoji, lat, lng) {
           if (!lat || !lng) {
-            lat = 45.745 + (Math.random() * 0.01 - 0.005);
-            lng = 4.84 + (Math.random() * 0.01 - 0.005);
+            var center = map.getCenter();
+            lat = center.lat + (Math.random() * 0.01 - 0.005);
+            lng = center.lng + (Math.random() * 0.01 - 0.005);
           }
 
           var incidentIcon = L.divIcon({
@@ -489,6 +609,12 @@ export default function JourneyScreen() {
           });
 
           L.marker([lat, lng], { icon: incidentIcon }).addTo(map).bindPopup("<b>" + type + "</b>").openPopup();
+        };
+
+        window.onload = function() {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: "MAP_READY" }));
+          }
         };
       </script>
     </body>
@@ -532,8 +658,31 @@ export default function JourneyScreen() {
     setChatMessage('');
   };
 
+  if (!activeTour) {
+    return (
+      <SafeAreaView style={styles.placeholderSafeArea}>
+        <View style={styles.placeholderContainer}>
+          <View style={styles.placeholderIconContainer}>
+            <Feather name="navigation" size={64} color="#ef4444" />
+          </View>
+          <Text style={styles.placeholderTitle}>Aucune tournée active</Text>
+          <Text style={styles.placeholderText}>
+            Pour commencer vos livraisons, veuillez sélectionner et démarrer une tournée depuis l'onglet « Mes Tournées ».
+          </Text>
+          <TouchableOpacity 
+            style={styles.placeholderButton}
+            onPress={() => navigation.navigate('Mes Tournées')}
+          >
+            <Feather name="list" size={18} color="#ffffff" style={{ marginRight: 8 }} />
+            <Text style={styles.placeholderButtonText}>Voir mes tournées</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.containerFullScreen}>
       <View style={styles.mapContainer}>
         <WebView 
           ref={webViewRef}
@@ -543,14 +692,25 @@ export default function JourneyScreen() {
           bounces={false}
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
+          onMessage={(event) => {
+            try {
+              const data = JSON.parse(event.nativeEvent.data);
+              if (data.type === 'MAP_READY') {
+                setIsMapReady(true);
+              }
+            } catch (e) {
+              console.error("WebView message parse error:", e);
+            }
+          }}
         />
       </View>
 
-      <TouchableOpacity 
-        style={[styles.demoModeBtn, isDemoModeActive && styles.demoModeBtnActive]}
-        onPress={toggleDemoMode}
-        activeOpacity={0.8}
-      >
+      <SafeAreaView style={styles.safeAreaOverlay} pointerEvents="box-none">
+        <TouchableOpacity 
+          style={[styles.demoModeBtn, isDemoModeActive && styles.demoModeBtnActive]}
+          onPress={toggleDemoMode}
+          activeOpacity={0.8}
+        >
         <Feather name="mic" size={16} color={isDemoModeActive ? '#ef4444' : '#64748b'} style={{marginRight: 6}} />
         <Text style={[styles.demoModeText, isDemoModeActive && styles.demoModeTextActive]}>
           {demoState === 'wake_word_detected' ? '🪄 À votre écoute...' : (isDemoModeActive ? '🪄 Dites "Signaler incident"' : '🪄 Mode Présentation')}
@@ -575,7 +735,7 @@ export default function JourneyScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.recenterBtn}
+            style={[styles.recenterBtn, { marginBottom: 12 }]}
             activeOpacity={0.8}
             onPress={() => {
               if (userLocation && webViewRef.current) {
@@ -588,21 +748,49 @@ export default function JourneyScreen() {
           >
             <Feather name="crosshair" size={24} color="#0f172a" />
           </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.recenterBtn, { marginBottom: 12 }]}
+            activeOpacity={0.8}
+            onPress={() => {
+              if (webViewRef.current) {
+                webViewRef.current.injectJavaScript('map.zoomIn(); true;');
+              }
+            }}
+          >
+            <Feather name="plus" size={24} color="#0f172a" />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.recenterBtn}
+            activeOpacity={0.8}
+            onPress={() => {
+              if (webViewRef.current) {
+                webViewRef.current.injectJavaScript('map.zoomOut(); true;');
+              }
+            }}
+          >
+            <Feather name="minus" size={24} color="#0f172a" />
+          </TouchableOpacity>
         </View>
 
         {deliveries.length > 0 && (
-          <View style={styles.currentDestCard}>
+          <TouchableOpacity 
+            style={styles.currentDestCard}
+            activeOpacity={0.9}
+            onPress={() => setDeliveriesModalVisible(true)}
+          >
             <View style={styles.destLeft}>
               <View style={[styles.logoPlaceholder, { backgroundColor: deliveries[0].color, borderWidth: deliveries[0].border ? 2 : 0, borderColor: deliveries[0].border }]}>
                 <Text style={[styles.logoText, { color: deliveries[0].textColor }]}>{deliveries[0].initial}</Text>
               </View>
-              <Text style={styles.destName}>{deliveries[0].name}</Text>
+              <Text style={styles.destName} numberOfLines={1} ellipsizeMode="tail">{deliveries[0].name}</Text>
             </View>
             <View style={styles.destRight}>
-              <Feather name="map-pin" size={14} color="#ffffff" style={{marginRight: 6}} />
-              <Text style={styles.destMetrics}>1.2 Km • 3 Mins</Text>
+              <Feather name="clock" size={14} color="#ffffff" style={{marginRight: 6}} />
+              <Text style={styles.destMetrics}>{deliveries[0].time}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
 
         <View style={styles.splitCard}>
@@ -616,11 +804,11 @@ export default function JourneyScreen() {
                 <View style={[styles.deliveryLogo, { backgroundColor: d.color, borderWidth: d.border ? 1 : 0, borderColor: d.border }]}>
                   <Text style={[styles.logoTextSmall, { color: d.textColor }]}>{d.initial}</Text>
                 </View>
-                <Text style={styles.deliveryText}>{d.name}</Text>
+                <Text style={styles.deliveryText} numberOfLines={1} ellipsizeMode="tail">{d.name}</Text>
               </View>
             ))}
 
-            {deliveries.length > 4 && (
+            {deliveries.length > 1 && (
               <TouchableOpacity style={styles.voirPlusBtn} onPress={() => setDeliveriesModalVisible(true)}>
                 <Text style={styles.voirPlusText}>Voir plus</Text>
               </TouchableOpacity>
@@ -926,10 +1114,18 @@ export default function JourneyScreen() {
       </Modal>
 
     </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  containerFullScreen: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  safeAreaOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#ffffff',
@@ -979,6 +1175,24 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
   },
+  destRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  validateButtonCurrentCard: {
+    backgroundColor: '#10b981',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
   validateButtonFull: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -995,6 +1209,8 @@ const styles = StyleSheet.create({
   destLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
   },
   logoPlaceholder: {
     width: 32,
@@ -1014,6 +1230,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+    flex: 1,
   },
   destRight: {
     flexDirection: 'row',
@@ -1022,6 +1239,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
+    flexShrink: 0,
   },
   destMetrics: {
     color: '#ffffff',
@@ -1104,6 +1322,7 @@ const styles = StyleSheet.create({
     color: '#e2e8f0',
     fontSize: 14,
     fontWeight: '500',
+    flex: 1,
   },
   voirPlusBtn: {
     backgroundColor: '#ffffff',
@@ -1548,5 +1767,61 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  placeholderSafeArea: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  placeholderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: '#f9fafb',
+  },
+  placeholderIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#fef2f2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#fee2e2',
+  },
+  placeholderTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+    paddingHorizontal: 16,
+  },
+  placeholderButton: {
+    backgroundColor: '#ef4444',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  placeholderButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

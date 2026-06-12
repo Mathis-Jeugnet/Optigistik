@@ -28,7 +28,13 @@ function MessagerieContent() {
 
   return (
     <DashboardLayout>
-      <div className="h-[calc(100vh-2rem)] flex gap-4">
+      <div className="animate-in flex flex-col gap-4 h-[calc(100vh-2rem)]">
+        <div>
+          <h1 className="text-2xl font-bold text-opti-blue font-display">Messagerie</h1>
+          <p className="text-sm text-gray-500 mt-1">Échangez avec vos conducteurs et collaborateurs.</p>
+        </div>
+
+        <div className="flex gap-4 flex-1 min-h-0">
         {/* Panneau gauche : liste des conversations */}
         <div className="w-80 shrink-0 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
           {loading ? (
@@ -48,6 +54,7 @@ function MessagerieContent() {
         {/* Panneau droit : fenêtre de chat */}
         <div className="flex-1 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
           <ChatWindow conversation={selectedConversation} />
+        </div>
         </div>
       </div>
 

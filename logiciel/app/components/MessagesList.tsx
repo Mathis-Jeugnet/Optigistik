@@ -18,8 +18,8 @@ interface MessagesListProps {
 export default function MessagesList({ messages, unreadCount = 0, onItemClick }: MessagesListProps) {
   return (
     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-full">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-xl font-bold text-opti-blue font-display">Messages récents</h3>
+      <div className="flex justify-between items-center mb-5">
+        <h3 className="text-lg font-bold text-opti-blue font-display">Messages récents</h3>
         {unreadCount > 0 && (
           <span className="bg-red-50 text-opti-red text-[10px] font-bold px-2 py-1 rounded-md tracking-wider">
             {unreadCount} NON-LUS

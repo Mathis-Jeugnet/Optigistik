@@ -4,7 +4,8 @@ import { useState } from "react";
 import { User, Monitor, Check, Mail, Shield, KeyRound } from "lucide-react";
 import { useTheme } from "next-themes";
 import { sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import DashboardLayout from "@/app/components/DashboardLayout";
 import { useAuth } from "@/app/context/AuthContext";
 import { useA11y } from "@/app/context/A11yContext";
@@ -45,7 +46,7 @@ export default function ParametresPage() {
 
   return (
     <DashboardLayout>
-      <div className="w-full space-y-6">
+      <div className="animate-in w-full space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-opti-blue font-display">Paramètres</h1>
@@ -87,7 +88,7 @@ export default function ParametresPage() {
                   {profile?.name?.[0]?.toUpperCase() ?? "?"}
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-opti-blue font-display">
+                  <p className="text-lg font-bold text-opti-blue font-display">
                     {profile?.name ?? "—"}
                   </p>
                   <p className="text-sm text-gray-500">{profile?.email ?? user?.email ?? "—"}</p>
@@ -181,7 +182,11 @@ export default function ParametresPage() {
                 {themeOptions.map(({ value, label, icon, desc }) => (
                   <button
                     key={value}
-                    onClick={() => setTheme(value)}
+                    onClick={() => {
+                      setTheme(value);
+                      const uid = auth.currentUser?.uid;
+                      if (uid) updateDoc(doc(db, "users", uid), { "settings.theme": value }).catch(() => {});
+                    }}
                     className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
                       theme === value
                         ? "border-opti-blue bg-blue-50 dark:border-white/30 dark:bg-white/10"

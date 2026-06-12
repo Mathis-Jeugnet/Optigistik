@@ -36,7 +36,12 @@ export default function ConducteursFlottePage() {
   return (
     <DashboardLayout>
       <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur"]}>
-      <div className="w-full space-y-6">
+      <div className="animate-in w-full space-y-6">
+
+        <div>
+          <h1 className="text-2xl font-bold text-opti-blue font-display">Conducteurs & Flotte</h1>
+          <p className="text-sm text-gray-500 mt-1">Gérez vos conducteurs, leurs profils et votre flotte de véhicules.</p>
+        </div>
 
         {/* Navigation Tabs Dynamiques (Reliées à /fleet) */}
         {view === "list" && (
@@ -75,7 +80,7 @@ export default function ConducteursFlottePage() {
             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
               <ShieldAlert className="w-10 h-10 text-opti-red" />
             </div>
-            <h2 className="text-xl font-bold text-opti-blue mb-2">Accès restreint</h2>
+            <h2 className="text-lg font-bold text-opti-blue mb-2">Accès restreint</h2>
             <p className="text-gray-500 max-w-md text-center leading-relaxed">
               Vous devez demander à un supérieur pour avoir accès à ces informations.
             </p>

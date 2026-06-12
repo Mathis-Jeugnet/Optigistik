@@ -1,6 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
+import { doc, updateDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 
 interface A11yContextType {
   showToolbar: boolean;
@@ -25,6 +27,10 @@ export function A11yProvider({ children }: { children: React.ReactNode }) {
   const setShowToolbar = (v: boolean) => {
     setShowToolbarState(v);
     localStorage.setItem("a11y-toolbar", String(v));
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      updateDoc(doc(db, "users", uid), { "settings.showToolbar": v }).catch(() => {});
+    }
   };
 
   if (!mounted) return <>{children}</>;

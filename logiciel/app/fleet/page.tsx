@@ -162,7 +162,7 @@ export default function FleetSection() {
             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
               <ShieldAlert className="w-10 h-10 text-opti-red" />
             </div>
-            <h2 className="text-xl font-bold text-opti-blue mb-2">Accès restreint</h2>
+            <h2 className="text-lg font-bold text-opti-blue mb-2">Accès restreint</h2>
             <p className="text-gray-500 max-w-md text-center leading-relaxed">
               Vous devez demander à un supérieur pour avoir accès à ces informations.
             </p>
@@ -211,7 +211,7 @@ export default function FleetSection() {
                 >
                   ← Retour à la liste
                 </button>
-                <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
                   <h3 className="text-lg font-bold text-opti-blue mb-4">Configuration de la Flotte</h3>
                   <p className="text-gray-500 mb-6">Gérez ici les types de véhicules et les spécialités disponibles.</p>
                   <FleetAdmin 

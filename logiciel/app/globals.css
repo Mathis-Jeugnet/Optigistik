@@ -47,7 +47,7 @@ h6 {
 @keyframes animate-in {
   from {
     opacity: 0;
-    transform: scale(0.95) translateY(10px);
+    transform: scale(0.98) translateY(6px);
   }
   to {
     opacity: 1;
@@ -56,7 +56,7 @@ h6 {
 }
 
 .animate-in {
-  animation: animate-in 0.2s ease-out;
+  animation: animate-in 0.35s ease-out;
 }
 
 .numbered-icon {

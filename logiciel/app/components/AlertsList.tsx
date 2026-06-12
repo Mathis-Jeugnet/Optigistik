@@ -245,7 +245,7 @@ export default function AlertsList({ alerts, isLoading, error }: AlertsListProps
 
   return (
     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-full">
-      <h3 className="text-xl font-bold text-opti-blue mb-4 font-display">Alertes & Notifications</h3>
+      <h3 className="text-lg font-bold text-opti-blue mb-5 font-display">Alertes & Notifications</h3>
       <div className="flex-1">{renderBody()}</div>
     </div>
   );

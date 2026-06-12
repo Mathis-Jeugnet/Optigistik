@@ -351,10 +351,10 @@ export default function FleetDetail({ vehicle, vehicleTypes, onBack, onEdit, onR
 
       {/* Modal de suppression */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl animate-fade-in">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-opti-blue flex items-center gap-2">
+              <h3 className="text-lg font-bold text-opti-blue font-display flex items-center gap-2">
                 <AlertTriangle className="w-6 h-6 text-opti-red" />
                 Confirmation de suppression
               </h3>
@@ -368,7 +368,7 @@ export default function FleetDetail({ vehicle, vehicleTypes, onBack, onEdit, onR
             </p>
 
             <div className="mb-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
                 Tapez "Confirmer" pour valider :
               </label>
               <input 
@@ -376,21 +376,21 @@ export default function FleetDetail({ vehicle, vehicleTypes, onBack, onEdit, onR
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                 placeholder="Confirmer"
-                className="w-full border border-gray-300 rounded-lg p-3 text-opti-blue focus:ring-2 focus:ring-opti-red focus:border-opti-red outline-none"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
               />
             </div>
 
             <div className="flex gap-3 justify-end">
               <button 
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 hover:text-opti-blue transition-colors border border-gray-200"
               >
                 Annuler
               </button>
               <button 
                 onClick={handleDelete}
                 disabled={deleteConfirmText.toLowerCase() !== "confirmer"}
-                className="px-4 py-2 bg-opti-red text-white font-bold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-opti-red hover:bg-opti-red-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Supprimer définitivement
               </button>
@@ -401,10 +401,10 @@ export default function FleetDetail({ vehicle, vehicleTypes, onBack, onEdit, onR
 
       {/* Modal de motif d'indisponibilité */}
       {showReasonModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl animate-fade-in">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-opti-blue flex items-center gap-2">
+              <h3 className="text-lg font-bold text-opti-blue font-display flex items-center gap-2">
                 <Settings className="w-6 h-6 text-gray-500" />
                 Rendre indisponible
               </h3>
@@ -456,14 +456,14 @@ export default function FleetDetail({ vehicle, vehicleTypes, onBack, onEdit, onR
             <div className="flex gap-3 justify-end">
               <button 
                 onClick={() => setShowReasonModal(false)}
-                className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 hover:text-opti-blue transition-colors border border-gray-200"
               >
                 Annuler
               </button>
               <button 
                 onClick={handleConfirmUnavailability}
                 disabled={unavailabilityReason === "Autre" && customReason.trim() === ""}
-                className="px-4 py-2 bg-orange-500 text-white font-bold rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Confirmer l'indisponibilité
               </button>
@@ -474,10 +474,10 @@ export default function FleetDetail({ vehicle, vehicleTypes, onBack, onEdit, onR
 
       {/* Modal d'ajout manuel d'événement de maintenance */}
       {showAddLogModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl animate-fade-in">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-opti-blue flex items-center gap-2">
+              <h3 className="text-lg font-bold text-opti-blue font-display flex items-center gap-2">
                 <Wrench className="w-6 h-6 text-opti-red" />
                 {logToEdit ? "Modifier l'événement" : "Nouvel événement"}
               </h3>
@@ -527,7 +527,7 @@ export default function FleetDetail({ vehicle, vehicleTypes, onBack, onEdit, onR
             <div className="flex gap-3 justify-end mt-8">
               <button 
                 onClick={() => setShowAddLogModal(false)}
-                className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 hover:text-opti-blue transition-colors border border-gray-200"
               >
                 Annuler
               </button>
