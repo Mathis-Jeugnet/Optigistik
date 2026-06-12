@@ -163,7 +163,7 @@ export default function MapSection({ trafficIncidents = [] }: { trafficIncidents
         {/* Bouton pour basculer en plein écran */}
         <button
           onClick={() => setIsFullScreen(!isFullScreen)}
-          className="absolute top-4 right-4 z-[1000] bg-white/90 backdrop-blur p-2.5 rounded-lg shadow-sm border border-gray-200 text-gray-700 hover:text-opti-blue hover:bg-white transition-all duration-200"
+          className="absolute top-4 right-4 z-[1000] bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur p-2.5 rounded-lg shadow-sm border border-gray-200 text-gray-700 hover:text-opti-blue hover:bg-white dark:hover:bg-[#2c2c2e] transition-all duration-200"
           title={isFullScreen ? "Réduire" : "Plein écran"}
         >
           {isFullScreen ? (

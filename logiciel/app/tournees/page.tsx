@@ -85,7 +85,7 @@ export default function TourneesPage() {
   return (
     <AppShell>
       <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur", "Chauffeur"]}>
-      <div className="space-y-6">
+      <div className="animate-in space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -136,14 +136,14 @@ export default function TourneesPage() {
 
         {/* Loading */}
         {loading && (
-          <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 text-center text-sm text-slate-400">
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 text-center text-sm text-slate-400">
             Chargement…
           </div>
         )}
 
         {/* Empty (no sessions at all) */}
         {!loading && sessions.length === 0 && (
-          <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 text-center space-y-3">
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 text-center space-y-3">
             <p className="text-sm text-slate-400">Aucune tournée sauvegardée.</p>
             <button
               onClick={handleNew}
@@ -156,7 +156,7 @@ export default function TourneesPage() {
 
         {/* No results after filter */}
         {!loading && sessions.length > 0 && filtered.length === 0 && (
-          <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 text-center text-sm text-slate-400">
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 text-center text-sm text-slate-400">
             Aucune tournée ne correspond à votre recherche.
           </div>
         )}

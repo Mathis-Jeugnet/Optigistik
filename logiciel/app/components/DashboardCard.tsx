@@ -19,7 +19,7 @@ export default function DashboardCard({
         fullHeight ? "h-full" : ""
       } ${className}`}
     >
-      <h3 className="text-xl font-bold text-opti-blue mb-4 font-display">
+      <h3 className="text-lg font-bold text-opti-blue mb-5 font-display">
         {title}
       </h3>
       <div className="flex-1 overflow-hidden">{children}</div>

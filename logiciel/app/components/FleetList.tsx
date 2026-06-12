@@ -65,16 +65,16 @@ export default function FleetList({ vehicles, vehicleTypes, onSelectVehicle, onA
   }, []);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
-      <div className="p-6 flex items-center justify-between border-b border-gray-50">
-        <h2 className="text-xl font-bold text-opti-blue flex items-center gap-3">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-opti-red"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5"/><path d="M14 17h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
-          Flotte de Véhicules
-        </h2>
+    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-visible">
+      <div className="p-6 flex items-center justify-between border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-opti-blue"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5"/><path d="M14 17h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+          <h2 className="text-lg font-bold text-opti-blue font-display">Flotte de Véhicules</h2>
+        </div>
         {userRole.toLowerCase() === 'admin' && (
-          <button 
+          <button
             onClick={onAddVehicle}
-            className="bg-opti-red hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors text-sm"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-opti-red hover:bg-opti-red-dark transition-colors"
           >
             <Plus className="w-4 h-4" />
             Ajouter un véhicule
@@ -191,14 +191,14 @@ export default function FleetList({ vehicles, vehicleTypes, onSelectVehicle, onA
 
       {/* Modal de suppression (re-utilisé de FleetDetail) */}
       {vehicleToDelete && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl animate-fade-in">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-opti-blue flex items-center gap-2">
-                <AlertTriangle className="w-6 h-6 text-opti-red" />
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl animate-in">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-opti-blue font-display flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-opti-red" />
                 Confirmation de suppression
               </h3>
-              <button onClick={() => setVehicleToDelete(null)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setVehicleToDelete(null)} className="p-2 text-gray-400 hover:text-opti-blue hover:bg-gray-50 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -208,28 +208,28 @@ export default function FleetList({ vehicles, vehicleTypes, onSelectVehicle, onA
             </p>
 
             <div className="mb-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                Tapez "Confirmer" pour valider :
+              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                Tapez "Confirmer" pour valider
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                 placeholder="Confirmer"
-                className="w-full border border-gray-300 rounded-lg p-3 text-opti-blue focus:ring-2 focus:ring-opti-red focus:border-opti-red outline-none"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
               />
             </div>
 
             {error && <p className="text-opti-red text-sm mb-4">{error}</p>}
 
             <div className="flex gap-3 justify-end">
-              <button 
+              <button
                 onClick={() => setVehicleToDelete(null)}
-                className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 hover:text-opti-blue transition-colors border border-gray-200"
               >
                 Annuler
               </button>
-              <button 
+              <button
                 onClick={async () => {
                   if (deleteConfirmText.toLowerCase() === "confirmer") {
                     const success = await deleteVehicle(vehicleToDelete.id);
@@ -242,7 +242,7 @@ export default function FleetList({ vehicles, vehicleTypes, onSelectVehicle, onA
                   }
                 }}
                 disabled={deleteConfirmText.toLowerCase() !== "confirmer"}
-                className="px-4 py-2 bg-opti-red text-white font-bold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-opti-red hover:bg-opti-red-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Supprimer définitivement
               </button>

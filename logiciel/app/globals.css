@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tailwind v4 : active les utilitaires dark: via la classe .dark sur <html> */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #000000;
@@ -44,7 +47,7 @@ h6 {
 @keyframes animate-in {
   from {
     opacity: 0;
-    transform: scale(0.95) translateY(10px);
+    transform: scale(0.98) translateY(6px);
   }
   to {
     opacity: 1;
@@ -53,10 +56,83 @@ h6 {
 }
 
 .animate-in {
-  animation: animate-in 0.2s ease-out;
+  animation: animate-in 0.35s ease-out;
 }
 
 .numbered-icon {
   background: transparent !important;
   border: none !important;
 }
+
+/* ─── Dark mode ──────────────────────────────────────────────────────────── */
+
+.dark {
+  --background: #111111;
+  --foreground: #f5f5f7;
+  /* --opti-blue reste #0d2543 : bg-opti-blue (boutons, avatars) conserve le navy */
+}
+
+/* Texte — correction clé : text-opti-blue → near-white, pas de bleu */
+.dark .text-opti-blue   { color: #f5f5f7; }
+.dark .text-gray-800    { color: #f5f5f7; }
+.dark .text-gray-700    { color: #e5e5e7; }
+.dark .text-gray-600    { color: #98989d; }
+.dark .text-gray-500    { color: #98989d; }
+.dark .text-gray-400    { color: #636366; }
+.dark .text-slate-600   { color: #98989d; }
+.dark .text-slate-500   { color: #98989d; }
+.dark .text-slate-400   { color: #636366; }
+
+/* Surfaces */
+.dark .bg-white         { background-color: #1c1c1e; }
+.dark .bg-gray-50       { background-color: #111111; }
+.dark .bg-gray-100      { background-color: #2c2c2e; }
+.dark .bg-gray-200      { background-color: #3a3a3c; }
+.dark .bg-slate-50      { background-color: #111111; }
+.dark .bg-slate-100     { background-color: #2c2c2e; }
+
+/* Backgrounds sémantiques */
+.dark .bg-red-50        { background-color: rgba(255,49,49,0.10); }
+.dark .bg-red-100       { background-color: rgba(255,49,49,0.15); }
+.dark .bg-blue-50       { background-color: rgba(255,255,255,0.05); }
+.dark .bg-amber-50      { background-color: rgba(255,180,0,0.10); }
+.dark .bg-emerald-50    { background-color: rgba(52,199,89,0.10); }
+.dark .bg-green-50      { background-color: rgba(52,199,89,0.10); }
+.dark .bg-green-100     { background-color: rgba(52,199,89,0.15); }
+.dark .bg-emerald-100   { background-color: rgba(52,199,89,0.15); }
+
+/* Hover */
+.dark .hover\:bg-white:hover      { background-color: #2c2c2e; }
+.dark .hover\:bg-gray-50:hover    { background-color: #2c2c2e; }
+.dark .hover\:bg-gray-100:hover   { background-color: #3a3a3c; }
+.dark .hover\:bg-red-50:hover     { background-color: rgba(255,49,49,0.15); }
+
+/* Bordures */
+.dark .border-gray-100  { border-color: #2c2c2e; }
+.dark .border-gray-200  { border-color: #3a3a3c; }
+.dark .border-gray-300  { border-color: #48484a; }
+.dark .border-white     { border-color: #2c2c2e; }
+.dark .border-slate-100 { border-color: #2c2c2e; }
+
+/* Champs de saisie */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark textarea,
+.dark select {
+  background-color: #2c2c2e;
+  color: #f5f5f7;
+  border-color: #3a3a3c;
+}
+.dark input::placeholder,
+.dark textarea::placeholder { color: #636366; }
+
+/* Badges de statut (conducteurs, flotte) */
+.dark .text-green-700   { color: #34c759; }
+.dark .text-emerald-700 { color: #34c759; }
+.dark .text-emerald-800 { color: #34c759; }
+.dark .text-amber-700   { color: #ffd60a; }
+.dark .text-blue-700    { color: #64d2ff; }
+
+/* Ombres */
+.dark .shadow-sm  { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.5); }
+.dark .shadow-lg  { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.6); }
+.dark .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8); }

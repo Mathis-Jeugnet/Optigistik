@@ -169,9 +169,9 @@ export default function VehicleForm({ initialData, vehicleTypes, specialties, mo
   };
 
   return (
-    <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-3xl mx-auto animate-fade-in">
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-xl font-bold text-opti-blue">
+    <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 max-w-3xl mx-auto animate-fade-in">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-bold text-opti-blue font-display">
           {initialData ? "Modifier le véhicule" : "Ajouter un véhicule"}
         </h2>
         <button onClick={onCancel} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
@@ -189,24 +189,24 @@ export default function VehicleForm({ initialData, vehicleTypes, specialties, mo
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Nom ou Identifiant *</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Nom ou Identifiant *</label>
             <input 
               type="text" 
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="ex: Volvo FH16 ou V-001"
-              className="w-full border border-gray-300 rounded-lg p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red focus:border-opti-red outline-none"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Plaque d'immatriculation *</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Plaque d'immatriculation *</label>
             <input 
               type="text" 
               value={plate}
               onChange={handlePlateChange}
               placeholder="ex: AB-123-CD"
-              className={`w-full border rounded-lg p-3 text-opti-blue font-medium outline-none transition-all ${!isPlateValid ? 'border-opti-red ring-1 ring-opti-red' : 'border-gray-300 focus:ring-2 focus:ring-opti-red'}`}
+              className={`w-full border rounded-lg p-3 text-opti-blue font-medium outline-none transition-all ${!isPlateValid ? 'border-opti-red ring-1 ring-opti-red' : 'border-gray-200 focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red'}`}
             />
             {!isPlateValid && (
               <p className="text-[10px] text-opti-red font-bold mt-1 uppercase animate-fade-in">
@@ -216,7 +216,7 @@ export default function VehicleForm({ initialData, vehicleTypes, specialties, mo
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Capacité en Palettes *</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Capacité en Palettes *</label>
             <input 
               type="text" 
               value={capacity}
@@ -226,7 +226,7 @@ export default function VehicleForm({ initialData, vehicleTypes, specialties, mo
                 setCapacity(val);
               }}
               placeholder="ex: 33"
-              className={`w-full border rounded-lg p-3 text-opti-blue font-medium outline-none transition-all ${!isCapacityValid ? 'border-opti-red ring-1 ring-opti-red' : 'border-gray-300 focus:ring-2 focus:ring-opti-red'}`}
+              className={`w-full border rounded-lg p-3 text-opti-blue font-medium outline-none transition-all ${!isCapacityValid ? 'border-opti-red ring-1 ring-opti-red' : 'border-gray-200 focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red'}`}
             />
             {!isCapacityValid && (
               <p className="text-[10px] text-opti-red font-bold mt-1 uppercase animate-fade-in">
@@ -236,14 +236,14 @@ export default function VehicleForm({ initialData, vehicleTypes, specialties, mo
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Dimensions (L x H) *</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Dimensions (L x H) *</label>
             <input 
               type="text" 
               value={dimensions}
               onChange={e => setDimensions(e.target.value)}
               onBlur={handleDimensionsBlur}
               placeholder="ex: 13.6m / 4.0m"
-              className={`w-full border rounded-lg p-3 text-opti-blue font-medium outline-none transition-all ${dimensionsError ? 'border-opti-red ring-1 ring-opti-red' : 'border-gray-300 focus:ring-2 focus:ring-opti-red'}`}
+              className={`w-full border rounded-lg p-3 text-opti-blue font-medium outline-none transition-all ${dimensionsError ? 'border-opti-red ring-1 ring-opti-red' : 'border-gray-200 focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red'}`}
             />
             {dimensionsError && (
               <p className="text-[10px] text-opti-red font-bold mt-1 uppercase animate-fade-in">
@@ -253,11 +253,11 @@ export default function VehicleForm({ initialData, vehicleTypes, specialties, mo
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Motorisation *</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Motorisation *</label>
             <select 
               value={motorization}
               onChange={e => setMotorization(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red focus:border-opti-red outline-none bg-white"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white cursor-pointer"
             >
               <option value="">Sélectionner...</option>
               {motorizations.map(m => (
@@ -267,12 +267,12 @@ export default function VehicleForm({ initialData, vehicleTypes, specialties, mo
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Typologie (Remorque) *</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Typologie (Remorque) *</label>
             {vehicleTypes.length > 0 ? (
               <select 
                 value={typeId}
                 onChange={e => setTypeId(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red focus:border-opti-red outline-none bg-white"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white cursor-pointer"
               >
                 <option value="" disabled>Sélectionner un type...</option>
                 {vehicleTypes.map(type => (
@@ -285,11 +285,11 @@ export default function VehicleForm({ initialData, vehicleTypes, specialties, mo
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Spécialité</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Spécialité</label>
             <select 
               value={specialty}
               onChange={e => setSpecialty(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red focus:border-opti-red outline-none bg-white"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white cursor-pointer"
             >
               <option value="">Aucune</option>
               {specialties.map(spec => (
@@ -299,28 +299,28 @@ export default function VehicleForm({ initialData, vehicleTypes, specialties, mo
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Prochain Contrôle Technique *</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Prochain Contrôle Technique *</label>
             <input 
               type="date" 
               value={inspectionDate}
               onChange={e => setInspectionDate(e.target.value)}
-              className="w-full md:w-1/2 border border-gray-300 rounded-lg p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red focus:border-opti-red outline-none"
+              className="w-full md:w-1/2 border border-gray-200 rounded-xl px-4 py-2.5 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red focus:border-opti-red outline-none"
             />
           </div>
         </div>
 
         <div className="pt-6 flex justify-end gap-4 border-t border-gray-100">
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={onCancel}
-            className="px-6 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-lg transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 hover:text-opti-blue transition-colors border border-gray-200"
           >
             Annuler
           </button>
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={loading}
-            className="px-6 py-3 bg-opti-red text-white font-bold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-opti-red hover:bg-opti-red-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Enregistrement..." : (initialData ? "Enregistrer les modifications" : "Créer le véhicule")}
           </button>

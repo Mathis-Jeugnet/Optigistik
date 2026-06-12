@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, Truck, Map as MapIcon, Users, Menu, LogOut, ShieldCheck, MessageSquare } from "lucide-react";
+import { Home, Truck, Map as MapIcon, Users, Menu, LogOut, ShieldCheck, MessageSquare, Settings } from "lucide-react";
 import { User } from "firebase/auth";
 import Link from "next/link";
 import RoleGuard from "./RoleGuard";
@@ -101,6 +101,19 @@ export default function Sidebar({ user, profile, onLogout, isCollapsed, toggleSi
             {!isCollapsed && <span className="text-sm truncate">Gestion du personnel</span>}
           </Link>
         </RoleGuard>
+
+        {/* Paramètres */}
+        <Link
+          href="/parametres"
+          className={`w-full flex items-center gap-4 py-3 px-4 rounded-l-full transition-all group relative ${
+            pathname === "/parametres"
+              ? "bg-red-50 text-opti-red font-bold"
+              : "text-opti-blue hover:bg-gray-50 hover:text-opti-red font-semibold"
+          }`}
+        >
+          <Settings className={`w-5 h-5 shrink-0 ${pathname === "/parametres" ? "text-opti-red" : "text-opti-blue"}`} />
+          {!isCollapsed && <span className="text-sm truncate">Paramètres</span>}
+        </Link>
       </nav>
 
       <div className="pr-4 mt-auto">

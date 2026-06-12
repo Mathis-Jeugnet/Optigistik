@@ -26,6 +26,10 @@ export interface UserProfile {
   role: UserRole;
   createdAt: any;
   mustChangePassword?: boolean;
+  settings?: {
+    theme?: string;
+    showToolbar?: boolean;
+  };
 }
 
 interface AuthContextType {

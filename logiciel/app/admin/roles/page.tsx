@@ -7,9 +7,8 @@ import RoleGuard from "@/app/components/RoleGuard";
 import AccessDenied from "@/app/components/AccessDenied";
 import DashboardLayout from "@/app/components/DashboardLayout";
 import { ROLES } from "@/app/context/AuthContext";
-import Link from "next/link";
-import { 
-  ArrowLeft, Plus, X, UserPlus, ShieldCheck, Info,
+import {
+  Plus, X, UserPlus, ShieldCheck, Info,
   Users, Truck, Trash2, Pencil, Check, AlertCircle, CheckCircle, ShieldAlert
 } from "lucide-react";
 
@@ -278,23 +277,17 @@ export default function RolesAdminPage() {
       }
     >
       <DashboardLayout>
-        <div className="flex-1">
+        <div className="animate-in flex-1">
           {/* Header Section */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
             <div>
-              <div className="flex items-center gap-3 mb-4">
-                <Link href="/" className="p-2 hover:bg-white rounded-lg transition-colors text-slate-400 hover:text-opti-blue border border-transparent hover:border-slate-100">
-                  <ArrowLeft className="w-5 h-5" />
-                </Link>
-                <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Administration</span>
-              </div>
-              <h1 className="text-4xl font-bold text-opti-blue tracking-tight mb-2">Gestion du Personnel</h1>
-              <p className="text-slate-500 font-medium">Gérez les accès et les responsabilités de vos collaborateurs.</p>
+<h1 className="text-2xl font-bold text-opti-blue font-display mb-2">Gestion du Personnel</h1>
+              <p className="text-sm text-gray-500 mt-1">Gérez les accès et les responsabilités de vos collaborateurs.</p>
             </div>
             
             <button 
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-3 px-8 py-4 bg-opti-red text-white font-bold rounded-2xl hover:bg-red-700 transition-all shadow-xl shadow-red-100 active:scale-95 group"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-opti-red hover:bg-opti-red-dark transition-colors"
             >
               <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
               Ajouter un collaborateur
@@ -303,40 +296,40 @@ export default function RolesAdminPage() {
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-            <div className="bg-white p-8 rounded-[28px] shadow-sm border border-slate-100 flex items-center gap-6 transition-all hover:shadow-md">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 transition-all hover:shadow-md">
               <div className="bg-blue-50 p-4 rounded-2xl text-blue-600"><Users className="w-8 h-8" /></div>
               <div>
                 <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Total</p>
-                <h3 className="text-3xl font-bold text-opti-blue">{users.length}</h3>
+                <h3 className="text-2xl font-bold text-opti-blue">{users.length}</h3>
               </div>
             </div>
-            <div className="bg-white p-8 rounded-[28px] shadow-sm border border-slate-100 flex items-center gap-6 transition-all hover:shadow-md">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 transition-all hover:shadow-md">
               <div className="bg-purple-50 p-4 rounded-2xl text-purple-600"><ShieldCheck className="w-8 h-8" /></div>
               <div>
                 <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Admins</p>
-                <h3 className="text-3xl font-bold text-opti-blue">{users.filter(u => u.role?.toLowerCase() === 'admin').length}</h3>
+                <h3 className="text-2xl font-bold text-opti-blue">{users.filter(u => u.role?.toLowerCase() === 'admin').length}</h3>
               </div>
             </div>
-            <div className="bg-white p-8 rounded-[28px] shadow-sm border border-slate-100 flex items-center gap-6 transition-all hover:shadow-md">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 transition-all hover:shadow-md">
               <div className="bg-orange-50 p-4 rounded-2xl text-orange-600"><ShieldCheck className="w-8 h-8" /></div>
               <div>
                 <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Gestionnaires</p>
-                <h3 className="text-3xl font-bold text-opti-blue">{users.filter(u => u.role?.toLowerCase() === 'gestionnaire').length}</h3>
+                <h3 className="text-2xl font-bold text-opti-blue">{users.filter(u => u.role?.toLowerCase() === 'gestionnaire').length}</h3>
               </div>
             </div>
-            <div className="bg-white p-8 rounded-[28px] shadow-sm border border-slate-100 flex items-center gap-6 transition-all hover:shadow-md">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 transition-all hover:shadow-md">
               <div className="bg-green-50 p-4 rounded-2xl text-green-600"><Truck className="w-8 h-8" /></div>
               <div>
                 <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Chauffeurs</p>
-                <h3 className="text-3xl font-bold text-opti-blue">{users.filter(u => u.role?.toLowerCase() === 'chauffeur').length}</h3>
+                <h3 className="text-2xl font-bold text-opti-blue">{users.filter(u => u.role?.toLowerCase() === 'chauffeur').length}</h3>
               </div>
             </div>
           </div>
           
           {/* Main Table Card */}
-          <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
-            <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-white">
-              <h3 className="text-xl font-bold text-opti-blue">Liste des accès</h3>
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
+              <h3 className="text-lg font-bold text-opti-blue font-display">Liste des accès</h3>
               <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
                 Affichage de {users.length} utilisateurs
               </div>
@@ -345,7 +338,7 @@ export default function RolesAdminPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100">
+                  <tr className="bg-gray-50 dark:bg-opti-blue/10 border-b border-gray-100">
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em]">Collaborateur</th>
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em]">Date d'arrivée</th>
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em]">Rôle actuel</th>
@@ -353,9 +346,9 @@ export default function RolesAdminPage() {
                     <th className="p-6 text-xs font-bold text-slate-400 uppercase tracking-[0.1em] text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-gray-100">
                   {users.map((user) => (
-                    <tr key={user.uid} className="group hover:bg-slate-50/50 transition-colors">
+                    <tr key={user.uid} className="group hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                       <td className="p-6">
                         <div className="flex items-center gap-4">
                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg shadow-sm
@@ -422,7 +415,7 @@ export default function RolesAdminPage() {
       {/* MODALE CRÉATION */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div className="bg-red-50 p-3 rounded-2xl"><UserPlus className="w-6 h-6 text-opti-red" /></div>
               <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X className="w-6 h-6 text-gray-400" /></button>
@@ -432,15 +425,15 @@ export default function RolesAdminPage() {
             <form onSubmit={handleCreateUser} className="space-y-5">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Nom Complet</label>
-                <input type="text" required value={newName} onChange={e => setNewName(e.target.value)} placeholder="ex: Jean Dupont" className="w-full border border-gray-200 rounded-xl p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                <input type="text" required value={newName} onChange={e => setNewName(e.target.value)} placeholder="ex: Jean Dupont" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Email</label>
-                <input type="email" required value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="jean.dupont@optigistik.fr" className="w-full border border-gray-200 rounded-xl p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                <input type="email" required value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="jean.dupont@optigistik.fr" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Rôle</label>
-                <select value={newRole} onChange={e => setNewRole(e.target.value)} className="w-full border border-gray-200 rounded-xl p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none bg-white transition-all cursor-pointer">
+                <select value={newRole} onChange={e => setNewRole(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white cursor-pointer">
                   {ROLES.map(role => <option key={role} value={role}>{role}</option>)}
                 </select>
               </div>
@@ -459,7 +452,7 @@ export default function RolesAdminPage() {
                       <select 
                         value={driverContractType} 
                         onChange={e => setDriverContractType(e.target.value)} 
-                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none bg-white transition-all cursor-pointer"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white cursor-pointer"
                       >
                         <option value="GRAND_ROUTIER">Grand Routier</option>
                         <option value="AUTRE_PERSONNEL">Autre Personnel</option>
@@ -474,37 +467,37 @@ export default function RolesAdminPage() {
                         value={driverDepot} 
                         onChange={e => setDriverDepot(e.target.value)} 
                         placeholder="DEPOT_LYON_01"
-                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Métier / Description</label>
-                      <input type="text" value={driverRole} onChange={e => setDriverRole(e.target.value)} placeholder="ex: Conducteur Poids Lourd" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                      <input type="text" value={driverRole} onChange={e => setDriverRole(e.target.value)} placeholder="ex: Conducteur Poids Lourd" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Téléphone</label>
-                      <input type="text" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} placeholder="0600112233" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                      <input type="text" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} placeholder="0600112233" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-2">ID Employé</label>
-                      <input type="text" value={driverEmployeeId} onChange={e => setDriverEmployeeId(e.target.value)} placeholder="BHD-HDD-123" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                      <input type="text" value={driverEmployeeId} onChange={e => setDriverEmployeeId(e.target.value)} placeholder="BHD-HDD-123" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Type de permis</label>
-                      <input type="text" value={driverLicenseTypes} onChange={e => setDriverLicenseTypes(e.target.value)} placeholder="C, CE" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                      <input type="text" value={driverLicenseTypes} onChange={e => setDriverLicenseTypes(e.target.value)} placeholder="C, CE" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Langues</label>
                       <select 
                         value={driverLanguages} 
                         onChange={e => setDriverLanguages(e.target.value)} 
-                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none bg-white transition-all cursor-pointer"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white cursor-pointer"
                       >
                         <option value="">Sélectionner une langue</option>
                         <option value="Français">Français</option>
@@ -518,7 +511,7 @@ export default function RolesAdminPage() {
                   
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Date d'embauche (Ancienneté)</label>
-                    <input type="date" value={driverSeniority} onChange={e => setDriverSeniority(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                    <input type="date" value={driverSeniority} onChange={e => setDriverSeniority(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
                   </div>
 
                   <div className="flex items-center gap-3 mt-2">
@@ -538,7 +531,7 @@ export default function RolesAdminPage() {
               {createError && <div className="p-4 bg-red-50 rounded-xl border border-red-100 text-opti-red text-xs font-medium">{createError}</div>}
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-3 text-slate-500 font-bold hover:bg-gray-50 rounded-xl transition-colors">Annuler</button>
-                <button type="submit" disabled={isCreating} className="flex-1 px-4 py-3 bg-opti-red text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-100 disabled:opacity-50">{isCreating ? "Création..." : "Confirmer"}</button>
+                <button type="submit" disabled={isCreating} className="flex-1 px-4 py-3 bg-opti-red text-white font-bold rounded-xl hover:bg-opti-red-dark transition-all shadow-lg shadow-red-100 disabled:opacity-50">{isCreating ? "Création..." : "Confirmer"}</button>
               </div>
             </form>
           </div>
@@ -548,13 +541,13 @@ export default function RolesAdminPage() {
       {/* MODALE SUPPRESSION */}
       {showDeleteModal && userToDelete && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 text-center">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 text-center">
             <div className="bg-red-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 className="w-10 h-10 text-opti-red" /></div>
             <h2 className="text-2xl font-bold text-opti-blue mb-3">Supprimer l'accès ?</h2>
             <p className="text-slate-500 mb-8 leading-relaxed">Êtes-vous sûr de vouloir supprimer le compte de <span className="font-bold text-opti-blue">{userToDelete.name || userToDelete.email}</span> ? Cette action est irréversible.</p>
             <div className="flex gap-3">
               <button onClick={() => { setShowDeleteModal(false); setUserToDelete(null); }} className="flex-1 px-4 py-3 text-slate-500 font-bold hover:bg-gray-50 rounded-xl transition-colors">Annuler</button>
-              <button onClick={handleDeleteUser} disabled={isDeleting} className="flex-1 px-4 py-3 bg-opti-red text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-100 disabled:opacity-50">{isDeleting ? "Suppression..." : "Confirmer"}</button>
+              <button onClick={handleDeleteUser} disabled={isDeleting} className="flex-1 px-4 py-3 bg-opti-red text-white font-bold rounded-xl hover:bg-opti-red-dark transition-all shadow-lg shadow-red-100 disabled:opacity-50">{isDeleting ? "Suppression..." : "Confirmer"}</button>
             </div>
           </div>
         </div>
@@ -563,7 +556,7 @@ export default function RolesAdminPage() {
       {/* MODALE ÉDITION */}
       {showEditModal && userToEdit && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div className="bg-blue-50 p-3 rounded-2xl"><Pencil className="w-6 h-6 text-opti-blue" /></div>
               <button onClick={() => setShowEditModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X className="w-6 h-6 text-gray-400" /></button>
@@ -573,15 +566,15 @@ export default function RolesAdminPage() {
             <form onSubmit={handleUpdateUser} className="space-y-5">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Nom Complet</label>
-                <input type="text" required value={editName} onChange={e => setEditName(e.target.value)} className="w-full border border-gray-200 rounded-xl p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                <input type="text" required value={editName} onChange={e => setEditName(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Email Professionnel</label>
-                <input type="email" required value={editEmail} onChange={e => setEditEmail(e.target.value)} className="w-full border border-gray-200 rounded-xl p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                <input type="email" required value={editEmail} onChange={e => setEditEmail(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Rôle</label>
-                <select value={editRole} onChange={e => setEditRole(e.target.value)} className="w-full border border-gray-200 rounded-xl p-3 text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none bg-white transition-all cursor-pointer">
+                <select value={editRole} onChange={e => setEditRole(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white cursor-pointer">
                   {ROLES.map(role => <option key={role} value={role}>{role}</option>)}
                 </select>
               </div>
@@ -600,7 +593,7 @@ export default function RolesAdminPage() {
                       <select 
                         value={driverContractType} 
                         onChange={e => setDriverContractType(e.target.value)} 
-                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none bg-white transition-all cursor-pointer"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white cursor-pointer"
                       >
                         <option value="GRAND_ROUTIER">Grand Routier</option>
                         <option value="AUTRE_PERSONNEL">Autre Personnel</option>
@@ -615,37 +608,37 @@ export default function RolesAdminPage() {
                         value={driverDepot} 
                         onChange={e => setDriverDepot(e.target.value)} 
                         placeholder="DEPOT_LYON_01"
-                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Métier / Description</label>
-                      <input type="text" value={driverRole} onChange={e => setDriverRole(e.target.value)} placeholder="ex: Conducteur Poids Lourd" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                      <input type="text" value={driverRole} onChange={e => setDriverRole(e.target.value)} placeholder="ex: Conducteur Poids Lourd" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Téléphone</label>
-                      <input type="text" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} placeholder="0600112233" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                      <input type="text" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} placeholder="0600112233" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-2">ID Employé</label>
-                      <input type="text" value={driverEmployeeId} onChange={e => setDriverEmployeeId(e.target.value)} placeholder="BHD-HDD-123" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                      <input type="text" value={driverEmployeeId} onChange={e => setDriverEmployeeId(e.target.value)} placeholder="BHD-HDD-123" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Type de permis</label>
-                      <input type="text" value={driverLicenseTypes} onChange={e => setDriverLicenseTypes(e.target.value)} placeholder="C, CE" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                      <input type="text" value={driverLicenseTypes} onChange={e => setDriverLicenseTypes(e.target.value)} placeholder="C, CE" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Langues</label>
                       <select 
                         value={driverLanguages} 
                         onChange={e => setDriverLanguages(e.target.value)} 
-                        className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none bg-white transition-all cursor-pointer"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors bg-white cursor-pointer"
                       >
                         <option value="">Sélectionner une langue</option>
                         <option value="Français">Français</option>
@@ -659,7 +652,7 @@ export default function RolesAdminPage() {
                   
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Date d'embauche (Ancienneté)</label>
-                    <input type="date" value={driverSeniority} onChange={e => setDriverSeniority(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-opti-blue font-medium focus:ring-2 focus:ring-opti-red outline-none transition-all" />
+                    <input type="date" value={driverSeniority} onChange={e => setDriverSeniority(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-opti-blue focus:outline-none focus:ring-2 focus:ring-opti-red/20 focus:border-opti-red transition-colors" />
                   </div>
 
                   <div className="flex items-center gap-3 mt-2">
@@ -679,7 +672,7 @@ export default function RolesAdminPage() {
               {editError && <div className="p-4 bg-red-50 rounded-xl border border-red-100 text-opti-red text-xs font-medium">{editError}</div>}
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setShowEditModal(false)} className="flex-1 px-4 py-3 text-slate-500 font-bold hover:bg-gray-50 rounded-xl transition-colors">Annuler</button>
-                <button type="submit" disabled={isUpdating} className="flex-1 px-4 py-3 bg-opti-red text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-100 disabled:opacity-50">{isUpdating ? "Mise à jour..." : "Sauvegarder"}</button>
+                <button type="submit" disabled={isUpdating} className="flex-1 px-4 py-3 bg-opti-red text-white font-bold rounded-xl hover:bg-opti-red-dark transition-all shadow-lg shadow-red-100 disabled:opacity-50">{isUpdating ? "Mise à jour..." : "Sauvegarder"}</button>
               </div>
             </form>
           </div>

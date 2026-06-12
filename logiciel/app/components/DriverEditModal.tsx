@@ -60,7 +60,7 @@ export default function DriverEditModal({ driver, isOpen, onClose, onSave }: Dri
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4 animate-in">
         {/* Header */}
         <div className="sticky top-0 bg-white rounded-t-3xl border-b border-gray-100 px-8 py-5 flex items-center justify-between z-10">
-          <h2 className="text-xl font-bold text-opti-blue font-display">
+          <h2 className="text-lg font-bold text-opti-blue font-display">
             Modifier le profil (Données de contact et Statut)
           </h2>
           <button
