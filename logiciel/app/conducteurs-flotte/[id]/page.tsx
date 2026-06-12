@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Driver } from "@/types";
 import { getDriverById } from "@/services/drivers";
 import DriverDetail from "../../components/DriverDetail";
-import DashboardLayout from "../../components/DashboardLayout";
+import AppShell from "../../components/AppShell";
 import RoleGuard from "../../components/RoleGuard";
 
 interface PageProps {
@@ -33,18 +33,18 @@ export default function DriverDetailPage({ params }: PageProps) {
 
   if (loading) {
     return (
-      <DashboardLayout>
+      <AppShell>
         <div className="flex items-center justify-center py-20 w-full">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-opti-blue"></div>
         </div>
-      </DashboardLayout>
+      </AppShell>
     );
   }
 
   if (!driver) return null;
 
   return (
-    <DashboardLayout>
+    <AppShell>
       <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur"]}>
         <DriverDetail
           driver={driver}
@@ -52,6 +52,6 @@ export default function DriverDetailPage({ params }: PageProps) {
           onBack={() => router.push("/conducteurs-flotte")}
         />
       </RoleGuard>
-    </DashboardLayout>
+    </AppShell>
   );
 }

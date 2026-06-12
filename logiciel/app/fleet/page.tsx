@@ -8,7 +8,7 @@ import FleetDetail from "../components/FleetDetail";
 import VehicleForm from "../components/VehicleForm";
 import FleetAdmin from "../components/FleetAdmin";
 // Import de ton layout global qui contient la Sidebar corrigée
-import DashboardLayout from "../components/DashboardLayout";
+import AppShell from "../components/AppShell";
 import RoleGuard from "../components/RoleGuard";
 import {
   getVehicleTypes, Vehicle, VehicleType, Specialty,
@@ -110,7 +110,7 @@ export default function FleetSection() {
   const userRole = profile?.role || 'Lecteur';
 
   return (
-    <DashboardLayout>
+    <AppShell>
       <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur"]}>
       <div className="w-full space-y-6">
         {/* Navigation Tabs Dynamiques */}
@@ -227,6 +227,6 @@ export default function FleetSection() {
         )}
       </div>
       </RoleGuard>
-    </DashboardLayout>
+    </AppShell>
   );
 }

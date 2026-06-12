@@ -1,29 +1,28 @@
 "use client";
 
 import AuthForm from "./components/AuthForm";
-import Dashboard from "./components/Dashboard";
+import AppShell from "./components/AppShell";
+import HomeDashboard from "./components/HomeDashboard";
 import { useAuth } from "@/app/context/AuthContext";
 
 export default function Home() {
-  const { user, profile, loading, logout } = useAuth();
+  const { user, loading } = useAuth();
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-opti-red"></div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-opti-blue"></div>
       </div>
     );
   }
 
-  if (user) {
-    return (
-      <Dashboard 
-        user={user} 
-        profile={profile} 
-        onLogout={logout} 
-      />
-    );
+  if (!user) {
+    return <AuthForm />;
   }
 
-  return <AuthForm />;
+  return (
+    <AppShell>
+      <HomeDashboard />
+    </AppShell>
+  );
 }

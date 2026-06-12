@@ -6,21 +6,19 @@ import { useAuth } from '../context/AuthContext'
 import { Menu, AlertTriangle, X } from 'lucide-react'
 import Sidebar from './Sidebar'
 import { MessagingProvider } from '../context/MessagingContext'
-import TrafficIncidentsPanel from './TrafficIncidentsPanel' // NOUVEL IMPORT
+import TrafficIncidentsPanel from './TrafficIncidentsPanel'
 
 interface AppShellProps {
   children: React.ReactNode
 }
 
 export default function AppShell({ children }: AppShellProps) {
-  const { user, profile, loading, logout } = useAuth() 
-  
+  const { user, profile, loading, logout } = useAuth()
+
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
-  
-  // ÉTAT POUR LE PANNEAU DE TRAFIC
   const [isTrafficPanelOpen, setIsTrafficPanelOpen] = useState(false)
-  
+
   const router = useRouter()
 
   // Déconnecté sur une page protégée (ex : accès direct à /tournees ou session
@@ -33,8 +31,8 @@ export default function AppShell({ children }: AppShellProps) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900" />
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-opti-blue" />
       </div>
     )
   }
@@ -61,8 +59,8 @@ export default function AppShell({ children }: AppShellProps) {
         `}>
           <Sidebar
             user={user}
-            profile={profile} 
-            onLogout={logout} 
+            profile={profile}
+            onLogout={logout}
             isCollapsed={isCollapsed}
             toggleSidebar={() => {
               if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -75,7 +73,7 @@ export default function AppShell({ children }: AppShellProps) {
         </div>
 
         {/* Main content */}
-        <div className="flex-1 flex flex-col min-w-0 bg-gray-50">
+        <div className="flex-1 flex flex-col min-w-0 bg-slate-50">
           <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100 sticky top-0 z-10">
             <button
               onClick={() => setIsMobileOpen(true)}
@@ -88,7 +86,9 @@ export default function AppShell({ children }: AppShellProps) {
           </div>
 
           <main className="flex-1 p-4 md:p-8 overflow-auto">
-            {children}
+            <div className="max-w-[1600px] mx-auto w-full">
+              {children}
+            </div>
           </main>
         </div>
 
@@ -111,21 +111,21 @@ export default function AppShell({ children }: AppShellProps) {
         <>
           {/* Overlay sombre */}
           {isTrafficPanelOpen && (
-            <div 
+            <div
               className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9998] transition-opacity"
               onClick={() => setIsTrafficPanelOpen(false)}
             />
           )}
 
           {/* Panneau */}
-          <div 
+          <div
             className={`fixed top-0 right-0 h-full w-full max-w-md bg-slate-50 shadow-2xl z-[9999] transform transition-transform duration-300 ease-in-out overflow-y-auto ${
               isTrafficPanelOpen ? 'translate-x-0' : 'translate-x-full'
             }`}
           >
             <div className="p-4 flex items-center justify-between border-b border-gray-200 bg-white sticky top-0 z-[10000]">
               <h3 className="font-bold text-opti-blue">Centre de Contrôle</h3>
-              <button 
+              <button
                 onClick={() => setIsTrafficPanelOpen(false)}
                 className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-full transition-colors"
               >

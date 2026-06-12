@@ -5,7 +5,7 @@ import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import RoleGuard from "@/app/components/RoleGuard";
 import AccessDenied from "@/app/components/AccessDenied";
-import DashboardLayout from "@/app/components/DashboardLayout";
+import AppShell from "@/app/components/AppShell";
 import { ROLES } from "@/app/context/AuthContext";
 import Link from "next/link";
 import { 
@@ -277,7 +277,7 @@ export default function RolesAdminPage() {
         <AccessDenied message="Désolé, cette zone est réservée aux administrateurs du système Optigistik." />
       }
     >
-      <DashboardLayout>
+      <AppShell>
         <div className="flex-1">
           {/* Header Section */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
@@ -417,7 +417,7 @@ export default function RolesAdminPage() {
             <span className="font-semibold text-sm">{notification.message}</span>
           </div>
         )}
-      </DashboardLayout>
+      </AppShell>
 
       {/* MODALE CRÉATION */}
       {showCreateModal && (

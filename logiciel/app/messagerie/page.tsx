@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import DashboardLayout from "@/app/components/DashboardLayout";
+import AppShell from "@/app/components/AppShell";
 import ConversationList from "@/app/components/messaging/ConversationList";
 import ChatWindow from "@/app/components/messaging/ChatWindow";
 import NewConversationModal from "@/app/components/messaging/NewConversationModal";
@@ -27,7 +27,7 @@ function MessagerieContent() {
   };
 
   return (
-    <DashboardLayout>
+    <AppShell>
       <div className="h-[calc(100vh-2rem)] flex gap-4">
         {/* Panneau gauche : liste des conversations */}
         <div className="w-80 shrink-0 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
@@ -57,7 +57,7 @@ function MessagerieContent() {
           onCreated={handleCreated}
         />
       )}
-    </DashboardLayout>
+    </AppShell>
   );
 }
 

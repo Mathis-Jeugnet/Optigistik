@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import DashboardLayout from "../components/DashboardLayout";
+import AppShell from "../components/AppShell";
 import RoleGuard from "../components/RoleGuard";
 import ClientsList from "../components/ClientsList";
 import ClientConfig from "../components/ClientConfig";
@@ -33,7 +33,7 @@ export default function ClientsPage() {
   };
 
   return (
-    <DashboardLayout>
+    <AppShell>
       <RoleGuard allowedRoles={["Admin", "Gestionnaire"]}>
         <div className="w-full space-y-6">
           {authLoading ? (
@@ -96,6 +96,6 @@ export default function ClientsPage() {
           )}
         </div>
       </RoleGuard>
-    </DashboardLayout>
+    </AppShell>
   );
 }

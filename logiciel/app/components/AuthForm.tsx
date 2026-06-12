@@ -5,13 +5,14 @@ import { auth } from "@/lib/firebase";
 import {
   signInWithEmailAndPassword
 } from "firebase/auth";
-import { Truck, ArrowRight, Mail, Lock, AlertCircle } from "lucide-react";
+import { Truck, ArrowRight, Mail, Lock, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export default function AuthForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,13 +99,21 @@ export default function AuthForm() {
                     <Lock className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-opti-red focus:border-opti-red transition-colors outline-none text-opti-black bg-gray-50 focus:bg-white"
+                    className="block w-full pl-10 pr-10 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-opti-red focus:border-opti-red transition-colors outline-none text-opti-black bg-gray-50 focus:bg-white"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-opti-red transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
                 </div>
               </div>
             </div>

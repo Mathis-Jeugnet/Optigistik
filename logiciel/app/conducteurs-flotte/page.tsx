@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import DashboardLayout from "../components/DashboardLayout";
+import AppShell from "../components/AppShell";
 import RoleGuard from "../components/RoleGuard";
 import DriversList from "../components/DriversList";
 import DriverDetail from "../components/DriverDetail";
@@ -34,7 +34,7 @@ export default function ConducteursFlottePage() {
   };
 
   return (
-    <DashboardLayout>
+    <AppShell>
       <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur"]}>
       <div className="w-full space-y-6">
 
@@ -97,6 +97,6 @@ export default function ConducteursFlottePage() {
         )}
       </div>
       </RoleGuard>
-    </DashboardLayout>
+    </AppShell>
   );
 }
