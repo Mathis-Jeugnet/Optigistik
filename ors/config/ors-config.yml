@@ -2,13 +2,19 @@ ors:
   endpoints:
     matrix:
       maximum_routes: 200000
+      maximum_routes_flexible: 250000 
       maximum_visited_nodes: 1000000
+    routing:
+      maximum_avoid_polygon_area: 200000000
+      maximum_avoid_polygon_extent: 20000
   engine:
+    graphs_data_access: MMAP 
     profile_default:
       build:
         source_file: /home/ors/files/france-latest.osm.pbf
     profiles:
       driving-hgv:
         enabled: true
-        build:
-          source_file: /home/ors/files/france-latest.osm.pbf
+      driving-car:
+        # NOUVEAU : On désactive les voitures pour diviser la consommation RAM par 2
+        enabled: false

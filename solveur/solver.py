@@ -363,18 +363,22 @@ class VRPOptimizer:
         ]
         max_unperformed_priority = max(unperformed_priorities) if unperformed_priorities else 1
 
-        if len(all_active_nodes) >= num_to_eject:
+        ejected_nodes = []
+
+        if len(all_active_nodes) > 0:
+            actual_num_to_eject = min(len(all_active_nodes), num_to_eject)
+            
             if max_unperformed_priority > 1:
                 low_priority_active = [n for n in all_active_nodes if self.request.nodes[n].priority_level < max_unperformed_priority]
                 
-                if len(low_priority_active) >= num_to_eject:
-                    ejected_nodes = random.sample(low_priority_active, num_to_eject)
+                if len(low_priority_active) >= actual_num_to_eject:
+                    ejected_nodes = random.sample(low_priority_active, actual_num_to_eject)
                 elif low_priority_active:
-                    ejected_nodes = low_priority_active + random.sample([n for n in all_active_nodes if n not in low_priority_active], num_to_eject - len(low_priority_active))
+                    ejected_nodes = low_priority_active + random.sample([n for n in all_active_nodes if n not in low_priority_active], actual_num_to_eject - len(low_priority_active))
                 else:
-                    ejected_nodes = random.sample(all_active_nodes, num_to_eject)
+                    ejected_nodes = random.sample(all_active_nodes, actual_num_to_eject)
             else:
-                ejected_nodes = random.sample(all_active_nodes, num_to_eject)
+                ejected_nodes = random.sample(all_active_nodes, actual_num_to_eject)
                 
             for r in shaken_routes:
                 r.nodes = [n for n in r.nodes if n not in ejected_nodes]
