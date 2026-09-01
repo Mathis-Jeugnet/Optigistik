@@ -43,7 +43,7 @@ export default function AppShell({ children }: AppShellProps) {
 
   return (
     <MessagingProvider>
-      <div className="flex min-h-screen bg-white font-sans relative overflow-hidden">
+      <div className="flex h-screen bg-white font-sans relative overflow-hidden">
         {/* Mobile backdrop */}
         {isMobileOpen && (
           <div
@@ -87,7 +87,7 @@ export default function AppShell({ children }: AppShellProps) {
             <span className="font-bold text-opti-blue font-display text-base">Optigistik</span>
           </div>
 
-          <main className="flex-1 p-4 md:p-8 overflow-auto">
+          <main className="flex-1 min-h-0 min-w-0 p-4 md:p-8 overflow-y-auto">
             {children}
           </main>
         </div>

@@ -24,7 +24,7 @@ export default function Dashboard({ user, profile, onLogout }: DashboardProps) {
 
   return (
     <MessagingProvider>
-      <div className="flex min-h-screen bg-white font-sans">
+      <div className="flex h-screen overflow-hidden bg-white font-sans">
         <Sidebar
           user={user}
           profile={profile}
@@ -33,7 +33,7 @@ export default function Dashboard({ user, profile, onLogout }: DashboardProps) {
           toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
 
-      <main className="flex-1 p-8 bg-white h-screen overflow-y-auto">
+      <main className="flex-1 min-h-0 min-w-0 p-8 bg-white h-screen overflow-y-auto">
         {activeTab === "home" && (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
