@@ -63,19 +63,19 @@ export default function Footer() {
             <ul className="space-y-2 text-gray-300">
               <li><Link href="/">Accueil</Link></li>
               <li><Link href="/features">Fonctionnalités</Link></li>
-              <li><Link href="/pricing">Tarifications</Link></li>
+              <li><Link href="/pricing">Tarifs</Link></li>
               <li><Link href="/blog">Blog</Link></li>
               <li><Link href="/contact">Nous contacter</Link></li>
             </ul>
 
             <hr className="border-gray-600 my-6 w-1/2" />
 
-            <p className="text-gray-300">+33 4 39 51 11 87</p>
+            <p className="text-gray-300">+33 4 87 54 34 61</p>
             <a
-              href="mailto:contact@optigistik.com"
+              href="mailto:optigistik@gmail.com"
               className="text-gray-300 underline"
             >
-              contact@optigistik.com
+              optigistik@gmail.com
             </a>
           </div>
 

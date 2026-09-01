@@ -58,7 +58,7 @@ export default function ContactBlock() {
 
                 <div className="flex flex-col md:flex-row justify-between items-center bg-[#E5E8EC] dark:bg-zinc-800 rounded-xl px-8 py-5 mb-12 gap-4 text-center md:text-left text-sm text-gray-700 dark:text-gray-300 transition-colors duration-300">
                     <div>+33 4 87 54 34 61</div>
-                    <div>37 Esplanade du Général de Gaulle, 92800 Puteaux, France</div>
+                    <div>2 Rue du Professeur Charles Appleton, 69007 Lyon</div>
                     <div>optigistik@gmail.com</div>
                 </div>
 

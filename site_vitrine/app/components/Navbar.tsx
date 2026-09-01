@@ -43,7 +43,7 @@ export default function Navbar() {
   const navItems = [
     { label: "Accueil", href: "/" },
     { label: "Fonctionnalités", href: "/features" },
-    { label: "Tarifications", href: "/pricing" },
+    { label: "Tarifs", href: "/pricing" },
     { label: "Blog", href: "/blog" },
     { label: "Nous contacter", href: "/contact" },
   ];

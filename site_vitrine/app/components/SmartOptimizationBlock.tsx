@@ -45,7 +45,7 @@ export default function SmartOptimizationBlock() {
                                     {feature.title}
                                 </h3>
                                 <p className="text-sm md:text-base text-gray-700 dark:text-gray-300">
-                                    → {feature.description}
+                                    • {feature.description}
                                 </p>
                             </div>
                         ))}

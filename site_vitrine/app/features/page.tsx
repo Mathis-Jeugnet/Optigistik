@@ -3,7 +3,6 @@ import RealTimeTrackingBlock from "../components/RealTimeTrackingBlock";
 import OperationalManagementBlock from "../components/OperationalManagementBlock";
 import SmartOptimizationBlock from "../components/SmartOptimizationBlock";
 import ValueAddedBlock from "../components/ValueAddedBlock";
-import CtaStrip from "../components/CtaStrip";
 
 export default function FeaturesPage() {
     return (
@@ -13,7 +12,6 @@ export default function FeaturesPage() {
             <SmartOptimizationBlock />
             <RealTimeTrackingBlock />
             <ValueAddedBlock />
-            <CtaStrip className="bg-blue" />
         </div>
     );
 }
