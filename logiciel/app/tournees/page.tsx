@@ -4,7 +4,8 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-import AppShell from '@/app/components/AppShell'
+// ON REMPLACE AppShell PAR DashboardLayout
+import DashboardLayout from '@/app/components/DashboardLayout' 
 import RoleGuard from '@/app/components/RoleGuard'
 import { listSessions, deleteSession } from '@/services/firestoreSession'
 import { useDeliveryStore } from '@/stores/deliveryStore'
@@ -34,7 +35,6 @@ export default function TourneesPage() {
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   
-  // Onglet actif
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active')
 
   useEffect(() => {
@@ -169,15 +169,11 @@ export default function TourneesPage() {
   }
 
   return (
-    <AppShell>
+    <DashboardLayout>
       <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur", "Chauffeur"]}>
-      {/* 
-        Alignement sur la structure w-full space-y-6 
-        utilisée dans votre FleetSection
-      */}
-      <div className="w-full space-y-6">
+      {/* On utilise la même classe w-full et le padding bottom global */}
+      <div className="w-full space-y-6 pb-24">
         
-        {/* Header simple */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-opti-blue font-display">Mes tournées</h1>
@@ -185,13 +181,12 @@ export default function TourneesPage() {
           </div>
           <button
             onClick={handleNew}
-            className="py-2 px-5 bg-opti-red text-white hover:bg-opti-red-dark rounded-xl transition-all font-bold text-sm shadow-sm"
+            className="py-2 px-5 bg-opti-red text-white hover:bg-opti-red-dark rounded-xl transition-all font-bold text-sm shadow-sm shrink-0"
           >
             + Nouvelle tournée
           </button>
         </div>
 
-        {/* Navigation Tabs Dynamiques - Style aligné sur FleetSection */}
         {!loading && sessions.length > 0 && (
           <div className="flex items-center border-b border-gray-200 gap-8">
             <button
@@ -224,10 +219,7 @@ export default function TourneesPage() {
           </div>
         )}
 
-        {/* Contenu avec animation fade-in comme dans FleetSection */}
         <div className="animate-in fade-in duration-500 space-y-6">
-          
-          {/* Barre de recherche */}
           {!loading && sessions.length > 0 && (
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
@@ -261,14 +253,12 @@ export default function TourneesPage() {
             </div>
           )}
 
-          {/* Loading */}
           {loading && (
             <div className="flex h-[200px] items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-opti-red"></div>
             </div>
           )}
 
-          {/* Empty global */}
           {!loading && sessions.length === 0 && (
             <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 text-center flex flex-col items-center justify-center gap-4 min-h-[300px]">
               <p className="text-gray-500">Aucune tournée sauvegardée pour le moment.</p>
@@ -281,7 +271,6 @@ export default function TourneesPage() {
             </div>
           )}
 
-          {/* No results (Filtre ou Onglet vide) */}
           {!loading && sessions.length > 0 && currentList.length === 0 && (
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 text-center text-sm text-gray-500">
               {hasFilters 
@@ -292,7 +281,7 @@ export default function TourneesPage() {
             </div>
           )}
 
-          {/* Liste des cartes */}
+          {/* Plus besoin de tricher avec le scroll de la liste ici, DashboardLayout s'en occupe ! */}
           {!loading && currentList.length > 0 && (
             <div className="space-y-3">
               {currentList.map(renderSessionCard)}
@@ -301,6 +290,6 @@ export default function TourneesPage() {
         </div>
       </div>
       </RoleGuard>
-    </AppShell>
+    </DashboardLayout>
   )
 }
