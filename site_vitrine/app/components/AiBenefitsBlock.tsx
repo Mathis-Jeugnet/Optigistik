@@ -14,7 +14,7 @@ export default function AiBenefitsBlock() {
     },
     {
       title: "Optimise vos coûts",
-      text: "Analyse en temps réel consommation, émissions et délais pour réduire vos dépenses."
+      text: "Analyse en temps réel de la consommation, des émissions et des délais pour réduire vos dépenses."
     },
   ];
 

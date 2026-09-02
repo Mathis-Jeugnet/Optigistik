@@ -6,7 +6,7 @@ export default function RealTimeTrackingBlock() {
         },
         {
             title: 'Tableau de bord',
-            description: 'Vue claire des trajets et objectifs atteints.',
+            description: 'Vue clair des trajets et objectifs atteints.',
         },
         {
             title: 'Localisation',

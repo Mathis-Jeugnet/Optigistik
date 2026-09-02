@@ -121,12 +121,12 @@ export default function ConfidentialitePage() {
                             <li>Outils analytiques (Google Analytics)</li>
                             <li>CRM (HubSpot)</li>
                         </ul>
-                        <p className="mt-2">Tous nos prestataires sont conformes au RGPD. Aucun partage commercial ou revente des données.</p>
+                        <p className="mt-2">Tous nos prestataires sont conformes à la RGPD. Aucun partage commercial ou revente des données.</p>
                     </section>
 
                     <section>
                         <h2 className="text-xl font-bold text-[#0C1D36] mb-3">8. Vos droits</h2>
-                        <p className="mb-2">Conformément au RGPD, vous disposez des droits suivants :</p>
+                        <p className="mb-2">Conformément à la RGPD, vous disposez des droits suivants :</p>
                         <ul className="list-disc list-inside space-y-1 text-gray-600">
                             <li>Droit d'accès</li>
                             <li>Droit de rectification</li>
