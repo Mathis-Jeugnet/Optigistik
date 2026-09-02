@@ -1,6 +1,10 @@
 services:
   site_vitrine:
     build: ./site_vitrine
+    command: npm run dev
+    volumes:
+      - ./site_vitrine:/app
+      - /app/node_modules
     container_name: site_vitrine
     ports:
       - "3000:3000"
@@ -11,6 +15,10 @@ services:
   logiciel:
     build: ./logiciel
     container_name: logiciel
+    command: npm run dev
+    volumes:
+      - ./logiciel:/app
+      - /app/node_modules
     ports:
       - "3001:3000"
     restart: always
