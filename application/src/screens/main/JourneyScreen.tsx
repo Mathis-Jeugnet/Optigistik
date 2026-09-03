@@ -255,7 +255,7 @@ export default function JourneyScreen({ navigation }: any) {
   const sendAudioToBackend = async (uri: string) => {
     try {
       // Tunnel public garanti (tourne sur l'hôte Mac actuel)
-      const backendUrl = `https://busy-rockets-sleep.loca.lt/transcribe_base64`;
+      const backendUrl = `https://loud-garlics-exist.loca.lt/transcribe_base64`;
 
       // Convert audio file to Base64 to bypass all FormData/Boundary bugs
       const base64Audio = await FileSystem.readAsStringAsync(uri, {
@@ -271,7 +271,9 @@ export default function JourneyScreen({ navigation }: any) {
         body: JSON.stringify({ audio_base64: base64Audio }),
         headers: {
           'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder': 'true' // Requis par localtunnel
+          'Bypass-Tunnel-Reminder': 'true',
+          'bypass-tunnel-reminder': 'true',
+          'User-Agent': 'OptigistikApp'
         },
         signal: controller.signal
       });
@@ -357,7 +359,7 @@ export default function JourneyScreen({ navigation }: any) {
       const uri = demoRecording.getURI();
 
       if (uri) {
-        const backendUrl = `https://busy-rockets-sleep.loca.lt/transcribe_base64`;
+        const backendUrl = `https://loud-garlics-exist.loca.lt/transcribe_base64`;
         const base64Audio = await FileSystem.readAsStringAsync(uri, {
           encoding: 'base64',
         });
@@ -371,7 +373,9 @@ export default function JourneyScreen({ navigation }: any) {
               body: JSON.stringify({ audio_base64: base64Audio }),
               headers: {
                 'Content-Type': 'application/json',
-                'Bypass-Tunnel-Reminder': 'true'
+                'Bypass-Tunnel-Reminder': 'true',
+                'bypass-tunnel-reminder': 'true',
+                'User-Agent': 'OptigistikApp'
               },
               signal: controller.signal
             });
@@ -533,6 +537,9 @@ export default function JourneyScreen({ navigation }: any) {
         });
         
         var userMarker = L.marker(${(() => {
+          if (userLocation && userLocation.coords && typeof userLocation.coords.latitude === 'number') {
+            return `[${userLocation.coords.latitude}, ${userLocation.coords.longitude}]`;
+          }
           if (resolvedNodes && resolvedNodes.length > 0) {
             const firstValidNode = resolvedNodes.find((n: any) => typeof n.lat === 'number' && typeof n.lng === 'number' && n.lat !== null && n.lng !== null);
             if (firstValidNode) {

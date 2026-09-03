@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, SafeAreaView, ScrollView, RefreshControl } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useActiveTour } from '../../utils/ActiveTourContext';
 import { getApiUrl, fetchWithRetry } from '../../utils/api';
@@ -10,6 +10,7 @@ export default function PlanningScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
 
   const fetchPlanning = async (showLoadingIndicator = true) => {
     if (!driverId) {
@@ -63,7 +64,6 @@ export default function PlanningScreen({ navigation }: any) {
   const formatDateLabel = (dateStr: string) => {
     if (!dateStr) return '';
     try {
-      // Le format attendu de date est YYYY-MM-DD
       const parts = dateStr.split('-');
       if (parts.length === 3) {
         const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
@@ -77,7 +77,62 @@ export default function PlanningScreen({ navigation }: any) {
     }
   };
 
-  const getStatusStyle = (status: string) => {
+  const parsePlanningDate = (dateStr: string): Date | null => {
+    if (!dateStr) return null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      const [y, m, d] = dateStr.split('T')[0].split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(dateStr)) {
+      const [d, m, y] = dateStr.split('/').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    const parsed = Date.parse(dateStr);
+    return isNaN(parsed) ? null : new Date(parsed);
+  };
+
+  const getTodayMidnight = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  };
+
+  const todayMidnight = getTodayMidnight();
+
+  // Services à venir / aujourd'hui (tri chronologique croissant : le plus proche en haut)
+  const upcomingPlanning = planning
+    .filter((item) => {
+      const pDate = parsePlanningDate(item.date);
+      if (!pDate) return true;
+      return pDate >= todayMidnight;
+    })
+    .sort((a, b) => {
+      const dateA = parsePlanningDate(a.date)?.getTime() || 0;
+      const dateB = parsePlanningDate(b.date)?.getTime() || 0;
+      return dateA - dateB;
+    });
+
+  // Services passés (tri anti-chronologique décroissant : le plus récent en haut)
+  const historyPlanning = planning
+    .filter((item) => {
+      const pDate = parsePlanningDate(item.date);
+      if (!pDate) return false;
+      return pDate < todayMidnight;
+    })
+    .sort((a, b) => {
+      const dateA = parsePlanningDate(a.date)?.getTime() || 0;
+      const dateB = parsePlanningDate(b.date)?.getTime() || 0;
+      return dateB - dateA;
+    });
+
+  const getStatusStyle = (status: string, isHistory = false) => {
+    if (isHistory) {
+      return {
+        bg: '#f3f4f6',
+        text: '#6b7280',
+        label: 'Terminé'
+      };
+    }
     switch (status) {
       case 'COMPLETED':
         return {
@@ -100,23 +155,22 @@ export default function PlanningScreen({ navigation }: any) {
     }
   };
 
-  const renderPlanningItem = ({ item }: { item: any }) => {
-    const statusInfo = getStatusStyle(item.status);
+  const renderPlanningItem = (item: any, isHistory = false) => {
+    const statusInfo = getStatusStyle(item.status, isHistory);
     const dateLabel = formatDateLabel(item.date);
 
     return (
-      <View style={styles.cardContainer}>
-        {/* En-tête de date s'il y a un changement de date */}
+      <View key={item.id} style={styles.cardContainer}>
         <View style={styles.dateHeader}>
-          <Feather name="calendar" size={16} color="#4b5563" style={{ marginRight: 8 }} />
-          <Text style={styles.dateLabelText}>{dateLabel || 'Date non définie'}</Text>
+          <Feather name="calendar" size={16} color={isHistory ? "#9ca3af" : "#4b5563"} style={{ marginRight: 8 }} />
+          <Text style={[styles.dateLabelText, isHistory && { color: '#6b7280' }]}>{dateLabel || 'Date non définie'}</Text>
         </View>
 
-        <View style={styles.card}>
+        <View style={[styles.card, isHistory && styles.historyCard]}>
           <View style={styles.cardHeader}>
             <View style={styles.timeContainer}>
-              <Feather name="clock" size={16} color="#6b7280" />
-              <Text style={styles.timeText}>
+              <Feather name="clock" size={16} color={isHistory ? "#9ca3af" : "#6b7280"} />
+              <Text style={[styles.timeText, isHistory && { color: '#6b7280' }]}>
                 {formatTime(item.startTime)} - {formatTime(item.endTime)}
               </Text>
             </View>
@@ -125,18 +179,18 @@ export default function PlanningScreen({ navigation }: any) {
             </View>
           </View>
 
-          <Text style={styles.sessionName}>{item.sessionName}</Text>
+          <Text style={[styles.sessionName, isHistory && { color: '#374151' }]}>{item.sessionName}</Text>
 
           <View style={styles.divider} />
 
           <View style={styles.detailsContainer}>
             <View style={styles.detailRow}>
-              <Feather name="truck" size={16} color="#ef4444" style={{ marginRight: 8 }} />
-              <Text style={styles.detailText}>{item.vehicleName}</Text>
+              <Feather name="truck" size={16} color={isHistory ? "#9ca3af" : "#ef4444"} style={{ marginRight: 8 }} />
+              <Text style={[styles.detailText, isHistory && { color: '#6b7280' }]}>{item.vehicleName}</Text>
             </View>
             <View style={styles.detailRow}>
               <Feather name="info" size={16} color="#6b7280" style={{ marginRight: 8 }} />
-              <Text style={styles.detailText}>
+              <Text style={[styles.detailText, isHistory && { color: '#6b7280' }]}>
                 Statut de la mission : {statusInfo.label}
               </Text>
             </View>
@@ -175,17 +229,68 @@ export default function PlanningScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
-          data={planning}
-          renderItem={renderPlanningItem}
-          keyExtractor={(item) => item.id}
+        <ScrollView
           contentContainerStyle={styles.listContainer}
-          refreshing={refreshing}
-          onRefresh={() => {
-            setRefreshing(true);
-            fetchPlanning(false);
-          }}
-        />
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                fetchPlanning(false);
+              }}
+              colors={['#ef4444']}
+            />
+          }
+        >
+          {/* SECTION 1 : SERVICES A VENIR */}
+          <View style={styles.sectionHeaderContainer}>
+            <View style={styles.sectionHeaderLeft}>
+              <Feather name="calendar" size={18} color="#ef4444" />
+              <Text style={styles.sectionTitle}>Services à venir</Text>
+            </View>
+            <View style={styles.badgeCount}>
+              <Text style={styles.badgeCountText}>{upcomingPlanning.length}</Text>
+            </View>
+          </View>
+
+          {upcomingPlanning.length === 0 ? (
+            <View style={styles.emptySectionCard}>
+              <Feather name="calendar" size={24} color="#9ca3af" style={{ marginBottom: 6 }} />
+              <Text style={styles.emptySubtext}>Aucun service à venir pour le moment.</Text>
+            </View>
+          ) : (
+            upcomingPlanning.map((item) => renderPlanningItem(item, false))
+          )}
+
+          {/* SECTION 2 : MON HISTORIQUE */}
+          <TouchableOpacity
+            style={[styles.sectionHeaderContainer, { marginTop: 24 }]}
+            onPress={() => setIsHistoryExpanded(!isHistoryExpanded)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.sectionHeaderLeft}>
+              <Feather name="clock" size={18} color="#6b7280" />
+              <Text style={styles.sectionTitle}>Mon Historique</Text>
+            </View>
+            <View style={styles.sectionHeaderRight}>
+              <View style={[styles.badgeCount, { backgroundColor: '#f3f4f6' }]}>
+                <Text style={[styles.badgeCountText, { color: '#4b5563' }]}>{historyPlanning.length}</Text>
+              </View>
+              <Feather name={isHistoryExpanded ? "chevron-up" : "chevron-down"} size={20} color="#6b7280" />
+            </View>
+          </TouchableOpacity>
+
+          {isHistoryExpanded && (
+            historyPlanning.length === 0 ? (
+              <View style={styles.emptySectionCard}>
+                <Feather name="archive" size={24} color="#9ca3af" style={{ marginBottom: 6 }} />
+                <Text style={styles.emptySubtext}>Aucun service passé dans l'historique.</Text>
+              </View>
+            ) : (
+              historyPlanning.map((item) => renderPlanningItem(item, true))
+            )
+          )}
+        </ScrollView>
       )}
     </SafeAreaView>
   );
@@ -218,6 +323,54 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: 16,
   },
+  sectionHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 4,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  badgeCount: {
+    backgroundColor: '#fef2f2',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  badgeCountText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ef4444',
+  },
+  emptySectionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   cardContainer: {
     marginBottom: 20,
   },
@@ -243,6 +396,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 4,
     elevation: 2,
+  },
+  historyCard: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e5e7eb',
+    opacity: 0.88,
   },
   cardHeader: {
     flexDirection: 'row',

@@ -11,8 +11,8 @@ RUN npm install --legacy-peer-deps
 # On copie le reste des fichiers du projet
 COPY . .
 
-# On installe le tunnel ngrok pour Expo
-RUN npm install -g @expo/ngrok
+# On installe le tunnel ngrok et localtunnel pour Expo
+RUN npm install -g @expo/ngrok localtunnel
 
 # On expose le port par défaut d'Expo
 EXPOSE 8081
