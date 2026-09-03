@@ -38,9 +38,6 @@ export default function ValueAddedBlock() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 text-center">
                     {benefits.map((benefit, index) => (
                         <div key={index} className="flex flex-col items-center p-4">
-                            {/* Placeholder for benefit icons */}
-                            {/* <img src={`/assets/benefit_${index}.png`} alt={benefit.title} className="w-12 h-12 mb-4" /> */}
-
                             <h3 className="text-lg md:text-xl font-archivoBlack text-[#0C1D36] dark:text-white mb-3">
                                 {benefit.title}
                             </h3>

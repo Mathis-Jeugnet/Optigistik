@@ -24,7 +24,7 @@ export default function PricingBlock() {
                             Payez uniquement pour les camions que vous utilisez. Accès à l'intégralité du logiciel.
                         </p>
                         <div className="text-4xl md:text-6xl font-archivoBlack text-[#0C1D36] dark:text-white mb-4">
-                            50€
+                            80€
                         </div>
                         <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mb-6">par camion / mois</p>
                         <div className="w-full border-t border-gray-200 dark:border-zinc-600 pt-6 mb-8 space-y-3">
