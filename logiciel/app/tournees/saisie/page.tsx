@@ -1,13 +1,14 @@
 'use client'
 
 import Link from 'next/link'
+import DashboardLayout from '@/app/components/DashboardLayout' 
 import AppShell from '@/app/components/AppShell'
 import RoleGuard from '@/app/components/RoleGuard'
 import TourneeInput from '@/app/components/TourneeInput'
 
 export default function TourneeSaisiePage() {
   return (
-    <AppShell>
+    <DashboardLayout>
       <RoleGuard allowedRoles={["Admin", "Gestionnaire", "Lecteur", "Chauffeur"]}>
       <div className="space-y-4 max-w-7xl mx-auto">
         <Link
@@ -22,6 +23,6 @@ export default function TourneeSaisiePage() {
         <TourneeInput />
       </div>
       </RoleGuard>
-    </AppShell>
+    </DashboardLayout>
   )
 }

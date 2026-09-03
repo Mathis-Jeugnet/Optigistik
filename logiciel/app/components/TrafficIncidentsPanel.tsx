@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { geocodeAddress } from '@/services/geocoding'
 import { addGlobalIncident, getIncidentsForDate, removeGlobalIncident, updateGlobalIncident, TrafficIncident } from '@/services/incidents'
 import { useAddressAutocomplete } from '@/hooks/useAddressAutocomplete'
-// AJOUT DES IMPORTS MANQUANTS :
 import { getAffectedSessions } from '@/services/autoOptimizer'
 import { runOptimization } from '@/services/optimizationEngine'
 
@@ -166,9 +165,25 @@ export default function TrafficIncidentsPanel() {
   }
 
   const handleDelete = async (id: string) => {
+    // 1. On mémorise l'incident AVANT de le supprimer pour connaître sa date et son heure
+    const incToDelete = activeIncidents.find(inc => inc.id === id);
+
+    // 2. Suppression dans la base de données et dans l'interface
     await removeGlobalIncident(id)
     if (editingId === id) handleCancelEdit()
     setActiveIncidents(prev => prev.filter(inc => inc.id !== id))
+
+    // 3. Déclenchement du recalcul automatique (Retour à la normale)
+    if (incToDelete) {
+      const affectedSessions = await getAffectedSessions(incToDelete.date, incToDelete.time, incToDelete.endTime);
+
+      if (affectedSessions.length > 0) {
+        alert(`Suppression de l'incident : Recalcul de ${affectedSessions.length} tournée(s) pour un retour à la normale...`);
+        for (const session of affectedSessions) {
+           await runOptimization(session);
+        }
+      }
+    }
   }
 
   const toggleDay = (val: number) => {

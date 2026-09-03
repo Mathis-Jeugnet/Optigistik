@@ -10,8 +10,14 @@ interface IGNCompletionResponse {
 }
 
 export async function fetchSuggestions(text: string, signal?: AbortSignal): Promise<string[]> {
-  if (text.length < MIN_TEXT_LENGTH) return []
-  const url = `${AUTOCOMPLETE_ENDPOINT}?text=${encodeURIComponent(text)}&type=StreetAddress&maximumResponses=5`
+  const cleanText = text.trim();
+  
+  // On vérifie la longueur APRÈS avoir retiré les espaces vides
+  if (cleanText.length < MIN_TEXT_LENGTH) return []
+  
+  // On retire les filtres stricts pour éviter les erreurs 400 de l'IGN
+  const url = `${AUTOCOMPLETE_ENDPOINT}?text=${encodeURIComponent(cleanText)}&maximumResponses=5`
+  
   try {
     const res = await fetch(url, { signal })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)

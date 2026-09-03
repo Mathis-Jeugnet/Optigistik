@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-// ON REMPLACE AppShell PAR DashboardLayout
 import DashboardLayout from '@/app/components/DashboardLayout' 
 import RoleGuard from '@/app/components/RoleGuard'
 import { listSessions, deleteSession } from '@/services/firestoreSession'
@@ -61,22 +60,31 @@ export default function TourneesPage() {
       return matchesSearch && matchesDate
     })
 
-    filtered.sort((a, b) => {
-      const dateA = new Date(a.meta.date || 0).getTime()
-      const dateB = new Date(b.meta.date || 0).getTime()
-      return dateB - dateA
-    })
-
     const todayStr = new Date().toISOString().split('T')[0]
     const activeList: DeliverySession[] = []
     const historyList: DeliverySession[] = []
 
+    // 1. Répartition dans les deux listes
     filtered.forEach((s) => {
       if (s.meta.date && s.meta.date < todayStr) {
         historyList.push(s)
       } else {
         activeList.push(s)
       }
+    })
+
+    // 2. Tri "À venir" : Croissant (Le plus urgent en haut)
+    activeList.sort((a, b) => {
+      const dateA = new Date(a.meta.date || 0).getTime()
+      const dateB = new Date(b.meta.date || 0).getTime()
+      return dateA - dateB
+    })
+
+    // 3. Tri "Historique" : Décroissant (Le plus récent en haut)
+    historyList.sort((a, b) => {
+      const dateA = new Date(a.meta.date || 0).getTime()
+      const dateB = new Date(b.meta.date || 0).getTime()
+      return dateB - dateA
     })
 
     return { active: activeList, history: historyList }

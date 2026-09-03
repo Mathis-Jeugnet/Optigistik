@@ -8,6 +8,7 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { useActiveTour } from '../../utils/ActiveTourContext';
+import { getApiUrl, fetchWithRetry } from '../../utils/api';
 
 export default function JourneyScreen({ navigation }: any) {
   const webViewRef = useRef<WebView>(null);
@@ -121,18 +122,24 @@ export default function JourneyScreen({ navigation }: any) {
         return `${h.toString().padStart(2, '0')}h${m.toString().padStart(2, '0')}`;
       };
 
-      const deliveryNodes = resolvedNodes.filter((n: any) => n.step_type === 'DELIVERY' || !n.step_type);
+      const deliveryNodes = resolvedNodes.filter((n: any) => 
+        (n.step_type === 'DELIVERY' || !n.step_type) && 
+        n.status !== 'DELIVERED' && 
+        n.status !== 'LIVRE'
+      );
+
       const mapped = deliveryNodes.map((node: any, idx: number) => {
         const name = node.address ? node.address.split(',')[0].trim() : 'Client';
         return {
           id: node.id || `stop-${idx}`,
           name: name,
-          initial: name.charAt(0).toUpperCase(),
+          initial: (idx + 1).toString(), // 🌟 NUMÉROTATION SÉQUENTIELLE CORRECTE ICI !
           color: '#ffffff',
           textColor: '#ef4444',
           time: `≈ ${formatTime(node.arrival_time)}`,
           coords: [node.lat, node.lng],
-          border: '#ef4444'
+          border: '#ef4444',
+          originalNode: node 
         };
       });
       setDeliveries(mapped);
@@ -142,11 +149,28 @@ export default function JourneyScreen({ navigation }: any) {
   }, [resolvedNodes]);
 
   useEffect(() => {
-    if (isMapReady && webViewRef.current && resolvedNodes && resolvedNodes.length > 0) {
-      const validNodes = resolvedNodes.filter((n: any) => typeof n.lat === 'number' && typeof n.lng === 'number' && n.lat !== null && n.lng !== null);
+    if (isMapReady && webViewRef.current && resolvedNodes) {
+      const validNodes = resolvedNodes.filter((n: any) => 
+        typeof n.lat === 'number' && 
+        typeof n.lng === 'number' && 
+        n.lat !== null && 
+        n.lng !== null &&
+        n.status !== 'DELIVERED' && 
+        n.status !== 'LIVRE'
+      );
+      
       if (validNodes.length > 0) {
-        const stopsArray = validNodes.map(n => `[${n.lat}, ${n.lng}]`).join(',');
+        let deliveryCounter = 1;
+        // 🌟 NOUVEAU FORMAT : On envoie un objet JSON avec les numéros à la carte !
+        const stopsArray = validNodes.map((n) => {
+          const isDelivery = (n.step_type === 'DELIVERY' || !n.step_type);
+          const num = isDelivery ? deliveryCounter++ : '';
+          return `{ lat: ${n.lat}, lng: ${n.lng}, isDelivery: ${isDelivery}, number: '${num}' }`;
+        }).join(',');
+        
         webViewRef.current.injectJavaScript(`window.updateStops([${stopsArray}]); true;`);
+      } else {
+        webViewRef.current.injectJavaScript(`window.updateStops([]); true;`);
       }
     }
   }, [isMapReady, resolvedNodes, deliveries]);
@@ -183,7 +207,6 @@ export default function JourneyScreen({ navigation }: any) {
 
           let jsCode = `window.updateLocation(${lat}, ${lng}); true;`;
           
-          // Use GPS heading if moving > 0.5 m/s
           if (speed > 0.5 && heading !== null && heading >= 0) {
             jsCode += `window.updateHeading(${heading}, true); true;`;
           }
@@ -254,15 +277,12 @@ export default function JourneyScreen({ navigation }: any) {
 
   const sendAudioToBackend = async (uri: string) => {
     try {
-      // Tunnel public garanti (tourne sur l'hôte Mac actuel)
       const backendUrl = `https://cold-taxis-clean.loca.lt/transcribe_base64`;
 
-      // Convert audio file to Base64 to bypass all FormData/Boundary bugs
       const base64Audio = await FileSystem.readAsStringAsync(uri, {
         encoding: 'base64',
       });
 
-      // Ajouter un Timeout de 60 secondes pour laisser le temps au fichier de s'uploader
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000);
 
@@ -271,7 +291,7 @@ export default function JourneyScreen({ navigation }: any) {
         body: JSON.stringify({ audio_base64: base64Audio }),
         headers: {
           'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder': 'true' // Requis par localtunnel
+          'Bypass-Tunnel-Reminder': 'true' 
         },
         signal: controller.signal
       });
@@ -345,7 +365,6 @@ export default function JourneyScreen({ navigation }: any) {
       await demoRecording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       await demoRecording.startAsync();
 
-      // Record for 2.5 seconds to make detection much faster
       await new Promise(resolve => setTimeout(resolve, 2500));
 
       if (!demoLoopRef.current) {
@@ -462,9 +481,14 @@ export default function JourneyScreen({ navigation }: any) {
         var stops = [
           ${(() => {
             if (resolvedNodes && resolvedNodes.length > 0) {
-              const validNodes = resolvedNodes.filter((n: any) => typeof n.lat === 'number' && typeof n.lng === 'number' && n.lat !== null && n.lng !== null);
+              const validNodes = resolvedNodes.filter((n: any) => typeof n.lat === 'number' && typeof n.lng === 'number' && n.lat !== null && n.lng !== null && n.status !== 'DELIVERED' && n.status !== 'LIVRE');
               if (validNodes.length > 0) {
-                return validNodes.map(n => `[${n.lat}, ${n.lng}]`).join(',\n          ');
+                let deliveryCounter = 1;
+                return validNodes.map(n => {
+                  const isDelivery = (n.step_type === 'DELIVERY' || !n.step_type);
+                  const num = isDelivery ? deliveryCounter++ : '';
+                  return `{ lat: ${n.lat}, lng: ${n.lng}, isDelivery: ${isDelivery}, number: '${num}' }`;
+                }).join(',\n          ');
               }
             }
             return '';
@@ -474,13 +498,6 @@ export default function JourneyScreen({ navigation }: any) {
         var routePolyline = null;
         var markersGroup = L.layerGroup().addTo(map);
 
-        var customIcon = L.divIcon({
-          className: 'custom-icon',
-          html: '<div style="background-color:#111827; width:20px; height:20px; border-radius:50%; border:3px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center;"><div style="background-color:white; width:6px; height:6px; border-radius:50%;"></div></div>',
-          iconSize: [26, 26],
-          iconAnchor: [13, 13]
-        });
-
         function drawRouteAndMarkers(newStops) {
           markersGroup.clearLayers();
           
@@ -489,15 +506,30 @@ export default function JourneyScreen({ navigation }: any) {
             return;
           }
 
-          newStops.forEach(function(coords) {
-            L.marker(coords, { icon: customIcon }).addTo(markersGroup);
+          // 🌟 NOUVELLE LOGIQUE : AFFICHER LES NUMÉROS SUR LA CARTE
+          newStops.forEach(function(stop) {
+            var iconHtml;
+            if (stop.isDelivery) {
+              iconHtml = '<div style="background-color:#ef4444; width:24px; height:24px; border-radius:50%; border:2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; color:white; font-size:12px; font-weight:bold; font-family:sans-serif;">' + stop.number + '</div>';
+            } else {
+              iconHtml = '<div style="background-color:#111827; width:16px; height:16px; border-radius:50%; border:2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.4);"></div>';
+            }
+            
+            var icon = L.divIcon({
+              className: 'custom-icon',
+              html: iconHtml,
+              iconSize: [28, 28],
+              iconAnchor: [14, 14]
+            });
+            
+            L.marker([stop.lat, stop.lng], { icon: icon }).addTo(markersGroup);
           });
 
           if (routePolyline) {
             map.removeLayer(routePolyline);
           }
 
-          var osrmUrl = 'https://router.project-osrm.org/route/v1/driving/' + newStops.map(function(s) { return s[1] + ',' + s[0]; }).join(';') + '?overview=full&geometries=geojson';
+          var osrmUrl = 'https://router.project-osrm.org/route/v1/driving/' + newStops.map(function(s) { return s.lng + ',' + s.lat; }).join(';') + '?overview=full&geometries=geojson';
           
           fetch(osrmUrl)
             .then(function(res) { return res.json(); })
@@ -514,7 +546,9 @@ export default function JourneyScreen({ navigation }: any) {
               }
             })
             .catch(function(err) {
-              routePolyline = L.polyline(newStops, { color: '#3b82f6', weight: 6, opacity: 0.9 }).addTo(map);
+              // Fallback simple si OSRM échoue
+              var fallbackCoords = newStops.map(function(s) { return [s.lat, s.lng]; });
+              routePolyline = L.polyline(fallbackCoords, { color: '#3b82f6', weight: 6, opacity: 0.9 }).addTo(map);
               map.fitBounds(routePolyline.getBounds(), { paddingBottomRight: [0, 300], paddingTopLeft: [50, 50] });
             });
         }
@@ -1012,7 +1046,7 @@ export default function JourneyScreen({ navigation }: any) {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Validation Modal */}
+      {/* Validation Modal - WITH CANCEL BUTTON & DYNAMIC NAME */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -1027,14 +1061,16 @@ export default function JourneyScreen({ navigation }: any) {
           />
           <View style={styles.deliveriesCard}>
             
-            <View style={styles.currentDestCardLarge}>
-              <View style={styles.destLeft}>
-                <View style={styles.logoPlaceholder}>
-                  <Text style={styles.logoText}>C</Text>
+            {deliveries.length > 0 ? (
+              <View style={styles.currentDestCardLarge}>
+                <View style={styles.destLeft}>
+                  <View style={[styles.logoPlaceholder, { backgroundColor: deliveries[0].color, borderWidth: deliveries[0].border ? 2 : 0, borderColor: deliveries[0].border }]}>
+                    <Text style={[styles.logoText, { color: deliveries[0].textColor }]}>{deliveries[0].initial}</Text>
+                  </View>
+                  <Text style={styles.destNameLarge}>{deliveries[0].name}</Text>
                 </View>
-                <Text style={styles.destNameLarge}>Carrefour Market</Text>
               </View>
-            </View>
+            ) : null}
 
             <View style={styles.perfBadgeContainer}>
               <View style={styles.perfBadge}>
@@ -1094,18 +1130,64 @@ export default function JourneyScreen({ navigation }: any) {
               </View>
             </ScrollView>
 
-            <View style={styles.fermerContainer}>
+            <View style={styles.validationActionRow}>
               <TouchableOpacity 
-                style={styles.fermerBtn} 
+                style={styles.cancelBtn} 
                 onPress={() => {
-                  setDeliveries(prev => prev.slice(1));
                   setValidationModalVisible(false);
                   if (signatureRef.current) {
                     signatureRef.current.clearSignature();
                   }
                 }}
               >
-                <Text style={styles.fermerText}>Confirmer</Text>
+                <Text style={styles.cancelBtnText}>Annuler</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.confirmBtn} 
+                onPress={async () => {
+                  const currentDelivery = deliveries[0];
+                  if (!currentDelivery || !activeTour) return;
+
+                  try {
+                    const apiUrl = getApiUrl();
+                    const nodeIdToValidate = currentDelivery.originalNode?.id || currentDelivery.id;
+                    const currentSessionId = activeTour.sessionId || activeTour.id;
+
+                    const { response, data } = await fetchWithRetry(`${apiUrl}/api/driver/validate-delivery`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Bypass-Tunnel-Reminder': 'true' 
+                      },
+                      body: JSON.stringify({
+                        sessionId: currentSessionId,
+                        nodeId: nodeIdToValidate
+                      }),
+                    });
+
+                    if (!response.ok || !data.success) {
+                      throw new Error(data?.error || "Erreur lors de la validation serveur");
+                    }
+
+                    // 🌟 OPTIMISTIC UI: Met à jour la liste ET la carte instantanément
+                    setResolvedNodes(prev => prev.map(n => 
+                      n.id === nodeIdToValidate ? { ...n, status: 'DELIVERED' } : n
+                    ));
+
+                    setValidationModalVisible(false);
+                    
+                    if (signatureRef.current) {
+                      signatureRef.current.clearSignature();
+                    }
+
+                  } catch (error) {
+                    console.error("Erreur lors de la validation :", error);
+                    alert("Impossible de valider la livraison. Vérifiez votre connexion.");
+                  }
+                }}
+              >
+                <Text style={styles.confirmBtnText}>Confirmer</Text>
               </TouchableOpacity>
             </View>
 
@@ -1672,6 +1754,37 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
     borderTopRightRadius: 4,
     overflow: 'hidden',
+  },
+
+  validationActionRow: {
+    flexDirection: 'row',
+    padding: 20,
+    backgroundColor: '#0f172a',
+    gap: 12,
+  },
+  cancelBtn: {
+    flex: 1,
+    backgroundColor: '#334155',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  confirmBtn: {
+    flex: 1,
+    backgroundColor: '#10b981',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  confirmBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 16,
   },
 
   // Chat Styles
