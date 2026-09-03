@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, SafeAreaView, RefreshControl } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useActiveTour } from '../../utils/ActiveTourContext';
 import { getApiUrl, fetchWithRetry } from '../../utils/api';
@@ -11,6 +11,7 @@ export default function ToursScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTour, setSelectedTour] = useState<any | null>(null);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
 
   const fetchTours = async (showLoadingIndicator = true) => {
     if (!driverId) {
@@ -62,6 +63,56 @@ export default function ToursScreen({ navigation }: any) {
     return `${h.toString().padStart(2, '0')}h${m.toString().padStart(2, '0')}`;
   };
 
+  const parseTourDate = (dateStr: string): Date | null => {
+    if (!dateStr) return null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      const [y, m, d] = dateStr.split('T')[0].split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(dateStr)) {
+      const [d, m, y] = dateStr.split('/').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    const parsed = Date.parse(dateStr);
+    return isNaN(parsed) ? null : new Date(parsed);
+  };
+
+  const getTodayMidnight = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  };
+
+  const todayMidnight = getTodayMidnight();
+
+  // Tournées à venir / aujourd'hui (date >= aujourd'hui)
+  // Trie chronologique croissant : la plus proche en haut
+  const upcomingTours = tours
+    .filter((tour) => {
+      const tourDate = parseTourDate(tour.date);
+      if (!tourDate) return true; // Si pas de date, conservée dans à venir
+      return tourDate >= todayMidnight;
+    })
+    .sort((a, b) => {
+      const dateA = parseTourDate(a.date)?.getTime() || 0;
+      const dateB = parseTourDate(b.date)?.getTime() || 0;
+      return dateA - dateB;
+    });
+
+  // Tournées passées (date < aujourd'hui)
+  // Trie anti-chronologique décroissant : la plus récente passée en haut
+  const historyTours = tours
+    .filter((tour) => {
+      const tourDate = parseTourDate(tour.date);
+      if (!tourDate) return false;
+      return tourDate < todayMidnight;
+    })
+    .sort((a, b) => {
+      const dateA = parseTourDate(a.date)?.getTime() || 0;
+      const dateB = parseTourDate(b.date)?.getTime() || 0;
+      return dateB - dateA;
+    });
+
   const getStopIcon = (type: string) => {
     switch (type) {
       case 'DEPOT_START': return 'home';
@@ -82,34 +133,39 @@ export default function ToursScreen({ navigation }: any) {
     }
   };
 
-  const renderTourCard = ({ item }: { item: any }) => {
+  const renderTourCard = (item: any, isHistory = false) => {
     const isActive = activeTour && activeTour.sessionId === item.sessionId;
 
     return (
       <TouchableOpacity 
-        style={[styles.card, isActive && styles.activeCard]} 
+        key={item.sessionId}
+        style={[styles.card, isHistory && styles.historyCard, isActive && styles.activeCard]} 
         onPress={() => setSelectedTour(item)}
       >
         <View style={styles.cardHeader}>
           <View style={styles.dateContainer}>
-            <Feather name="calendar" size={16} color="#6b7280" />
-            <Text style={styles.dateText}>{item.date}</Text>
+            <Feather name="calendar" size={16} color={isHistory ? "#9ca3af" : "#6b7280"} />
+            <Text style={[styles.dateText, isHistory && styles.historyDateText]}>{item.date}</Text>
           </View>
-          {isActive && (
+          {isActive ? (
             <View style={styles.activeBadge}>
               <Text style={styles.activeBadgeText}>Actif sur GPS</Text>
             </View>
-          )}
+          ) : isHistory ? (
+            <View style={styles.historyBadge}>
+              <Text style={styles.historyBadgeText}>Passée</Text>
+            </View>
+          ) : null}
         </View>
 
-        <Text style={styles.tourName}>{item.sessionName}</Text>
+        <Text style={[styles.tourName, isHistory && styles.historyTourName]}>{item.sessionName}</Text>
 
         <View style={styles.truckContainer}>
-          <Feather name="truck" size={16} color="#ef4444" />
-          <Text style={styles.truckText}>{item.vehicleName}</Text>
+          <Feather name="truck" size={16} color={isHistory ? "#9ca3af" : "#ef4444"} />
+          <Text style={[styles.truckText, isHistory && styles.historyTruckText]}>{item.vehicleName}</Text>
         </View>
 
-        <View style={styles.statsContainer}>
+        <View style={[styles.statsContainer, isHistory && styles.historyStatsContainer]}>
           <View style={styles.statItem}>
             <Feather name="map-pin" size={14} color="#6b7280" />
             <Text style={styles.statValue}>{item.stopsCount}</Text>
@@ -124,8 +180,10 @@ export default function ToursScreen({ navigation }: any) {
         </View>
 
         <View style={styles.cardFooter}>
-          <Text style={styles.viewDetailsText}>Voir le détail des étapes</Text>
-          <Feather name="chevron-right" size={16} color="#ef4444" />
+          <Text style={[styles.viewDetailsText, isHistory && styles.historyViewDetailsText]}>
+            Voir le détail des étapes
+          </Text>
+          <Feather name="chevron-right" size={16} color={isHistory ? "#9ca3af" : "#ef4444"} />
         </View>
       </TouchableOpacity>
     );
@@ -159,17 +217,68 @@ export default function ToursScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
-          data={tours}
-          renderItem={renderTourCard}
-          keyExtractor={(item) => item.sessionId}
+        <ScrollView
           contentContainerStyle={styles.listContainer}
-          refreshing={refreshing}
-          onRefresh={() => {
-            setRefreshing(true);
-            fetchTours(false);
-          }}
-        />
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                fetchTours(false);
+              }}
+              colors={['#ef4444']}
+            />
+          }
+        >
+          {/* SECTION 1 : TOURNEES A VENIR */}
+          <View style={styles.sectionHeaderContainer}>
+            <View style={styles.sectionHeaderLeft}>
+              <Feather name="truck" size={18} color="#ef4444" />
+              <Text style={styles.sectionTitle}>Tournées à venir</Text>
+            </View>
+            <View style={styles.badgeCount}>
+              <Text style={styles.badgeCountText}>{upcomingTours.length}</Text>
+            </View>
+          </View>
+
+          {upcomingTours.length === 0 ? (
+            <View style={styles.emptySectionCard}>
+              <Feather name="calendar" size={24} color="#9ca3af" style={{ marginBottom: 6 }} />
+              <Text style={styles.emptySubtext}>Aucune tournée à venir pour le moment.</Text>
+            </View>
+          ) : (
+            upcomingTours.map((item) => renderTourCard(item, false))
+          )}
+
+          {/* SECTION 2 : MON HISTORIQUE */}
+          <TouchableOpacity
+            style={[styles.sectionHeaderContainer, { marginTop: 24 }]}
+            onPress={() => setIsHistoryExpanded(!isHistoryExpanded)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.sectionHeaderLeft}>
+              <Feather name="clock" size={18} color="#6b7280" />
+              <Text style={styles.sectionTitle}>Mon Historique</Text>
+            </View>
+            <View style={styles.sectionHeaderRight}>
+              <View style={[styles.badgeCount, { backgroundColor: '#f3f4f6' }]}>
+                <Text style={[styles.badgeCountText, { color: '#4b5563' }]}>{historyTours.length}</Text>
+              </View>
+              <Feather name={isHistoryExpanded ? "chevron-up" : "chevron-down"} size={20} color="#6b7280" />
+            </View>
+          </TouchableOpacity>
+
+          {isHistoryExpanded && (
+            historyTours.length === 0 ? (
+              <View style={styles.emptySectionCard}>
+                <Feather name="archive" size={24} color="#9ca3af" style={{ marginBottom: 6 }} />
+                <Text style={styles.emptySubtext}>Aucune tournée passée dans l'historique.</Text>
+              </View>
+            ) : (
+              historyTours.map((item) => renderTourCard(item, true))
+            )
+          )}
+        </ScrollView>
       )}
 
       {/* MODAL DE DÉTAIL DES ÉTAPES */}
@@ -274,6 +383,39 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: 16,
   },
+  sectionHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 4,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  badgeCount: {
+    backgroundColor: '#fef2f2',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  badgeCountText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ef4444',
+  },
   card: {
     backgroundColor: '#ffffff',
     borderRadius: 20,
@@ -290,6 +432,54 @@ const styles = StyleSheet.create({
   activeCard: {
     borderColor: '#ef4444',
     borderWidth: 2,
+  },
+  historyCard: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e5e7eb',
+    opacity: 0.88,
+  },
+  historyBadge: {
+    backgroundColor: '#f3f4f6',
+    borderColor: '#e5e7eb',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  historyBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#6b7280',
+  },
+  historyDateText: {
+    color: '#9ca3af',
+  },
+  historyTourName: {
+    color: '#374151',
+  },
+  historyTruckText: {
+    color: '#4b5563',
+  },
+  historyStatsContainer: {
+    backgroundColor: '#f3f4f6',
+  },
+  historyViewDetailsText: {
+    color: '#6b7280',
+  },
+  emptySectionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   cardHeader: {
     flexDirection: 'row',
