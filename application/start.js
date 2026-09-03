@@ -2,8 +2,52 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+function createPublicTunnel(port, localHost, serviceName) {
+  return new Promise((resolve) => {
+    let resolved = false;
+
+    function attempt() {
+      if (resolved) return;
+      console.log(`\x1b[33mCréation du tunnel public pour ${serviceName} (${localHost}:${port})...\x1b[0m`);
+
+      const proc = spawn('npx', ['localtunnel', '--port', port.toString(), '--local-host', localHost], { shell: true });
+
+      proc.stdout.on('data', (data) => {
+        const output = data.toString();
+        if (output.includes('your url is:')) {
+          const url = output.split('your url is:')[1].trim();
+          if (url && !resolved) {
+            resolved = true;
+            resolve(url);
+          }
+        }
+      });
+
+      proc.stderr.on('data', (data) => {
+        const str = data.toString();
+        if (str.includes('connection refused') || str.includes('Error:')) {
+          console.log(`\x1b[33m[${serviceName}] Reconnexion au serveur localtunnel.me...\x1b[0m`);
+        }
+      });
+
+      proc.on('close', () => {
+        if (!resolved) {
+          setTimeout(attempt, 2000);
+        }
+      });
+
+      proc.on('error', () => {
+        if (!resolved) {
+          setTimeout(attempt, 2000);
+        }
+      });
+    }
+
+    attempt();
+  });
+}
+
 async function main() {
-  // Print a highly styled, premium visual layout for all service links immediately
   console.log('\n\x1b[1m\x1b[32m======================================================================');
   console.log('🚀  OPTIGISTIK RUNNING SUCCESSFULLY - INITIALIZING TUNNELS...');
   console.log('======================================================================\x1b[0m\n');
@@ -13,127 +57,56 @@ async function main() {
   console.log('\x1b[36m📱  Driver App (Expo):      \x1b[0mScan the QR code below on your mobile device.\n');
   
   console.log('\x1b[90m----------------------------------------------------------------------\x1b[0m');
+
+  // Connexion automatique avec retry jusqu'à obtention des 3 vrais tunnels publics HTTPS
+  const [solverUrl, apiUrl, expoTunnelUrl] = await Promise.all([
+    createPublicTunnel(8000, 'solveur', 'Solveur Vocal'),
+    createPublicTunnel(3000, 'logiciel', 'API Logiciel'),
+    createPublicTunnel(8081, 'localhost', 'Metro Expo')
+  ]);
+
+  console.log(`\n\x1b[32m✅ Tunnel public Solveur prêt : ${solverUrl}\x1b[0m`);
+  console.log(`\x1b[32m✅ Tunnel public API prêt     : ${apiUrl}\x1b[0m`);
+  console.log(`\x1b[32m✅ Tunnel public Expo prêt    : ${expoTunnelUrl}\x1b[0m\n`);
+
+  // Configurer le proxy URL Expo sans ajouter le port 8081
+  const expoHostname = expoTunnelUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const proxyUrl = `https://${expoHostname}`;
   
-  console.log('\x1b[33mCréation du tunnel public automatique pour la Reconnaissance Vocale (solveur:8000)...\x1b[0m');
-  const ltSolver = spawn('npx', ['--yes', 'localtunnel', '--port', '8000', '--local-host', 'solveur'], { shell: true });
-  
-  console.log('\x1b[33mCréation du tunnel public automatique pour l\'API (logiciel:3000)...\x1b[0m');
-  const ltApi = spawn('npx', ['--yes', 'localtunnel', '--port', '3000', '--local-host', 'logiciel'], { shell: true });
+  process.env.REACT_NATIVE_PACKAGER_HOSTNAME = expoHostname;
+  process.env.EXPO_PACKAGER_PROXY_URL = proxyUrl;
 
-  let solverUrl = null;
-  let apiUrl = null;
-  let expoLaunched = false;
-
-  function launchExpoIfReady() {
-    // We proceed if we have resolved both URLs (either successfully or using fallback)
-    if (solverUrl && apiUrl && !expoLaunched) {
-      expoLaunched = true;
-      
-      console.log(`\n\x1b[32m✅ Tunnel vocal prêt et sécurisé : ${solverUrl}\x1b[0m`);
-      console.log(`\x1b[32m✅ Tunnel API prêt et sécurisé   : ${apiUrl}\x1b[0m\n`);
-      
-      // Inject solver URL dynamically into JourneyScreen.tsx
-      const journeyPath = path.join(__dirname, 'src', 'screens', 'main', 'JourneyScreen.tsx');
-      if (fs.existsSync(journeyPath)) {
-        let journeyCode = fs.readFileSync(journeyPath, 'utf8');
-        journeyCode = journeyCode.replace(/const backendUrl = `https?:\/\/[^`]+\/transcribe_base64`;/g, `const backendUrl = \`${solverUrl}/transcribe_base64\`;`);
-        fs.writeFileSync(journeyPath, journeyCode);
-        console.log('✏️  URL du solveur vocal injectée dans JourneyScreen.tsx');
-      }
-      
-      // Inject API URL dynamically into api.ts
-      const apiPath = path.join(__dirname, 'src', 'utils', 'api.ts');
-      if (fs.existsSync(apiPath)) {
-        let apiCode = fs.readFileSync(apiPath, 'utf8');
-        apiCode = apiCode.replace(/const injectedUrl = "[^"]*";/g, `const injectedUrl = "${apiUrl}";`);
-        fs.writeFileSync(apiPath, apiCode);
-        console.log('✏️  URL de l\'API Logiciel injectée dans api.ts');
-      }
-
-      console.log('\n\x1b[33mLaunching Expo Go Tunnel (with Cache Clear)...\x1b[0m\n');
-      const expo = spawn('npx', ['expo', 'start', '--tunnel', '--clear'], {
-        stdio: 'inherit',
-        shell: true
-      });
-
-      const startTime = Date.now();
-
-      expo.on('exit', (code) => {
-        const duration = Date.now() - startTime;
-        if (code !== 0 && duration < 15000) {
-          console.log('\n\x1b[31m⚠️ Le tunnel Expo (ngrok) a échoué (Ngrok requiert probablement un authtoken ou est bloqué).\x1b[0m');
-          console.log('\x1b[33m🔄 Lancement de secours d\'Expo en mode Local/LAN (port 8081)...\x1b[0m\n');
-          
-          const expoLocal = spawn('npx', ['expo', 'start', '--clear'], {
-            stdio: 'inherit',
-            shell: true
-          });
-          
-          expoLocal.on('exit', (localCode) => {
-            ltSolver.kill();
-            ltApi.kill();
-            process.exit(localCode || 0);
-          });
-        } else {
-          ltSolver.kill();
-          ltApi.kill();
-          process.exit(code || 0);
-        }
-      });
-    }
+  // Inject solver URL dynamically into JourneyScreen.tsx
+  const journeyPath = path.join(__dirname, 'src', 'screens', 'main', 'JourneyScreen.tsx');
+  if (fs.existsSync(journeyPath)) {
+    let journeyCode = fs.readFileSync(journeyPath, 'utf8');
+    journeyCode = journeyCode.replace(/const backendUrl = `https?:\/\/[^`]+\/transcribe_base64`;/g, `const backendUrl = \`${solverUrl}/transcribe_base64\`;`);
+    fs.writeFileSync(journeyPath, journeyCode);
+    console.log('✏️  URL du solveur vocal injectée dans JourneyScreen.tsx');
   }
 
-  // Handle solver tunnel output
-  ltSolver.stdout.on('data', (data) => {
-    const output = data.toString();
-    if (output.includes('your url is:')) {
-      solverUrl = output.split('your url is:')[1].trim();
-      launchExpoIfReady();
+  // Inject API URL dynamically into api.ts
+  const apiPath = path.join(__dirname, 'src', 'utils', 'api.ts');
+  if (fs.existsSync(apiPath)) {
+    let apiCode = fs.readFileSync(apiPath, 'utf8');
+    apiCode = apiCode.replace(/const injectedUrl = "[^"]*";/g, `const injectedUrl = "${apiUrl}";`);
+    fs.writeFileSync(apiPath, apiCode);
+    console.log('✏️  URL de l\'API Logiciel injectée dans api.ts');
+  }
+
+  console.log('\n\x1b[33mLancement du Metro Bundler Expo avec Proxy HTTPS public...\x1b[0m\n');
+  const expo = spawn('npx', ['expo', 'start', '--clear'], {
+    stdio: 'inherit',
+    shell: true,
+    env: { 
+      ...process.env, 
+      REACT_NATIVE_PACKAGER_HOSTNAME: expoHostname,
+      EXPO_PACKAGER_PROXY_URL: proxyUrl
     }
   });
 
-  // Handle API tunnel output
-  ltApi.stdout.on('data', (data) => {
-    const output = data.toString();
-    if (output.includes('your url is:')) {
-      apiUrl = output.split('your url is:')[1].trim();
-      launchExpoIfReady();
-    }
-  });
-
-  // Handle errors / exits
-  const handleError = (serviceName, err) => {
-    console.error(`[${serviceName} Error]`, err.toString());
-  };
-
-  ltSolver.stderr.on('data', (data) => {
-    const str = data.toString();
-    if (!str.includes('npm WARN') && !str.includes('npm notice')) {
-      handleError('Solver Tunnel', str);
-    }
-  });
-
-  ltApi.stderr.on('data', (data) => {
-    const str = data.toString();
-    if (!str.includes('npm WARN') && !str.includes('npm notice')) {
-      handleError('API Tunnel', str);
-    }
-  });
-
-  ltSolver.on('close', (code) => {
-    if (!solverUrl && !expoLaunched) {
-      console.log('⚠️ Solver tunnel failed to start. Falling back to localhost.');
-      solverUrl = 'http://localhost:8000';
-      launchExpoIfReady();
-    }
-  });
-
-  ltApi.on('close', (code) => {
-    if (!apiUrl && !expoLaunched) {
-      console.log('⚠️ API tunnel failed to start. Falling back to default.');
-      apiUrl = 'http://localhost:3001';
-      launchExpoIfReady();
-    }
+  expo.on('exit', (code) => {
+    process.exit(code || 0);
   });
 }
 

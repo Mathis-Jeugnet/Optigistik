@@ -88,6 +88,8 @@ export default function ToursScreen({ navigation }: any) {
   // Tournées à venir / aujourd'hui (date >= aujourd'hui)
   // Trie chronologique croissant : la plus proche en haut
   const upcomingTours = tours
+
+  
     .filter((tour) => {
       const tourDate = parseTourDate(tour.date);
       if (!tourDate) return true; // Si pas de date, conservée dans à venir
