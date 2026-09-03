@@ -134,8 +134,18 @@ export default function ToursScreen({ navigation }: any) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mes Tournées</Text>
-        <Text style={styles.subtitle}>Consultez et sélectionnez vos feuilles de route</Text>
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.title}>Mes Tournées</Text>
+          <Text style={styles.subtitle}>Consultez et sélectionnez vos feuilles de route</Text>
+        </View>
+        {/* NOUVEAU BOUTON D'ACTUALISATION GLOBAL */}
+        <TouchableOpacity 
+          style={styles.headerRefreshButton} 
+          onPress={() => fetchTours(true)}
+          disabled={loading || refreshing}
+        >
+          <Feather name="refresh-cw" size={20} color="#1f2937" />
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -146,7 +156,7 @@ export default function ToursScreen({ navigation }: any) {
         <View style={styles.centered}>
           <Feather name="alert-triangle" size={48} color="#9ca3af" />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => fetchTours()}>
+          <TouchableOpacity style={styles.retryButton} onPress={() => fetchTours(true)}>
             <Text style={styles.retryButtonText}>Réessayer</Text>
           </TouchableOpacity>
         </View>
@@ -154,7 +164,8 @@ export default function ToursScreen({ navigation }: any) {
         <View style={styles.centered}>
           <Feather name="clipboard" size={48} color="#9ca3af" />
           <Text style={styles.emptyText}>Aucune tournée validée ne vous est assignée.</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => fetchTours(false)}>
+          {/* CORRECTION DU BOUTON ICI (passage à true) */}
+          <TouchableOpacity style={styles.retryButton} onPress={() => fetchTours(true)}>
             <Text style={styles.retryButtonText}>Actualiser</Text>
           </TouchableOpacity>
         </View>
@@ -167,7 +178,7 @@ export default function ToursScreen({ navigation }: any) {
           refreshing={refreshing}
           onRefresh={() => {
             setRefreshing(true);
-            fetchTours(false);
+            fetchTours(false); // Ici on laisse false car le "pull-to-refresh" natif affiche déjà son propre loader
           }}
         />
       )}
@@ -254,12 +265,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 16,
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
+  },
+  headerTextContainer: {
+    flex: 1,
+    paddingRight: 16,
+  },
+  headerRefreshButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 28,
